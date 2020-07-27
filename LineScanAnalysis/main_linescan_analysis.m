@@ -17,7 +17,6 @@ if isa(filenames,'cell') || isa(filenames,'char')
     fontsize = 8;
     tfszmpl = 1.3;
     scmapdditems = {'gray', 'hot', 'summer', 'winter', 'parula'};
-    scmap = scmapdditems{1};
     winszdditems = {'4', '8', '16', '32'};
     winsz = str2double(winszdditems{1}); % Line average
     plotrange = [1 1000];
@@ -37,6 +36,9 @@ if isa(filenames,'cell') || isa(filenames,'char')
         [tmpstack, imInfo] = load_bf_file(filepointer, true);
 
         % New parameters
+        climui = [-3 3];
+        scmap = scmapdditems{1};
+        savepointer = '';
         immeta =imInfo.metadata;
         timstampidx = strncmp(immeta, 'timestamp',9);
         timemeta = immeta(find(timstampidx, 2, 'first'));
@@ -65,6 +67,7 @@ if isa(filenames,'cell') || isa(filenames,'char')
         uiwait;
         iFile = iFile+1;
         close all;
+        clear('immeta','timstampidx','roiInfo', 'traceInfo', 'figInfo', 'tmpstack', 'composite2D', 'dims', 'catrange', 'imhw');
     end
 end
 
@@ -144,7 +147,7 @@ end
         % Add UI controls
         deltrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', deltrcbutpos,'string', 'Delete ROIs','fontsize', fontsize, 'callback', {@cb_deltrcbut});
         showtrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', showtrcbutpos,'string', 'Show traces','fontsize', fontsize, 'callback', {@cb_showtrcbut});
-        saveallbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', saveallbutpos,'string', 'Save traces','fontsize', fontsize, 'callback', {@cb_saveallbut});
+        saveallbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', saveallbutpos,'string', 'Save all ROIs','fontsize', fontsize, 'callback', {@cb_saveallbut});
         continuebut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', continuebutpos,'string', 'Next file','fontsize', fontsize, 'callback', {@cb_continuebut});
         
         roilbtxt  = uicontrol('parent', ctrlfig, 'style', 'text','position', roilbtxtpos,'string', 'Select ROI for analysis:','fontsize', fontsize);
@@ -270,7 +273,7 @@ end
     function tmpmtrx = mark_rois(tmpmtrx, pr, rois)
         if strcmp(rois,'all')
             roiidx = 1:size(roiInfo,2);
-            if isempty(roiInfo(end).position), roiidx= roiidx(1:end-1); end
+            if isempty(roiInfo(end).name), roiidx= roiidx(1:end-1); end
         else
             roiidx = rois;
         end
@@ -359,7 +362,7 @@ end
         dFoF(dFoF<cscl(1)) = cscl(1); dFoF(dFoF>cscl(2)) = cscl(2); 
         dFoF = scale_data(dFoF, cscl);
         
-        traceidx = zeros(numrois,1);
+        traceidx = [];
         for iRoi = 1:numrois
             trcexists = false;
             existidx1 = [traceInfo(:).figID] == figid;
@@ -371,7 +374,7 @@ end
                     if all(traceInfo(existidx(iEx)).fig_params{1,1} == pr) &&...
                             traceInfo(existidx(iEx)).fig_params{2,1} == wsz % check plotrange & binning
                         trcexists = true;
-                        traceidx(iRoi) = existidx(iEx);
+                        traceidx = [traceidx existidx(iEx)];
                         break;
                     end
                     iEx = iEx+1;
@@ -379,70 +382,80 @@ end
             end
             if ~trcexists
                 if isempty(traceInfo(1).figID), tmpidx = 1; else, tmpidx = size(traceInfo,2)+1; end
-                traceidx(iRoi) = tmpidx;
                 traceInfo(tmpidx).figID = figInfo(figidx).IDs;
                 traceInfo(tmpidx).roiID = roiInfo(roiidx(iRoi)).ID;
                 traceInfo(tmpidx).fig_params{1,1} = pr;
                 traceInfo(tmpidx).fig_params{2,1} = wsz;
                 traceInfo(tmpidx).save = true;
                 [tmpvals,tmpdFoF, yrange] = calc_roi_av_trace(roiidx(iRoi), averaged, pr, 'ROI');
-                traceInfo(tmpidx).binned_roi_av = {tmpvals};
-                traceInfo(tmpidx).dFoF_roi_av = {tmpdFoF};
-                traceInfo(tmpidx).timestamp = {(pr(1)+yrange(1)-1)*ftime:ftime:(pr(1)+yrange(2)-1)*ftime};
+                if isempty(yrange)
+                    traceInfo(tmpidx).binned_roi_av = NaN;
+                    traceInfo(tmpidx).dFoF_roi_av = NaN;
+                    traceInfo(tmpidx).timestamp = NaN;
+                    msgbox(strcat('ROI # ', num2str(iRoi), ' lies outside the plotted range!'));
+                else
+                    traceidx = [traceidx tmpidx];
+                    traceInfo(tmpidx).binned_roi_av = {tmpvals};
+                    traceInfo(tmpidx).dFoF_roi_av = {tmpdFoF};
+                    traceInfo(tmpidx).timestamp = {(pr(1)+yrange(1)-1)*ftime:ftime:(pr(1)+yrange(2)-1)*ftime};
+                end
             end
         end
+        numrois = numel(traceidx);
         
-        % Prepare display
-        spcol = 8; sprow = 3;
-        hspace = 20;
-        vspace = 30;
-        whbut = [100 25];
-        whsp = [floor((whfig(1)-5*hspace)/spcol) floor((whfig(2)-(sprow-1+4)*vspace-whbut(2))/sprow)];
-        whrbg = [whsp(1) round(whsp(2)/2)];
-        whrb = [round(0.8*whrbg(1)) round(whrbg(2)/3)];
-        savebutpos = [round(whfig(1)/2)-round(hspace/2)-whbut(1) round(vspace/2) whbut];
-        closebutpos = [round(whfig(1)/2)+round(hspace/2) round(vspace/2) whbut];
-        rbbotpos = [0.15*whrbg(1) round(whrb(2)*0.5) whrb];
-        rbtoppos = [0.15*whrbg(1) round(whrb(2)*1.5) whrb];
-        whsp = whsp./whfig; whrbg = whrbg./whfig; hspace = hspace/whfig(1); vspace = vspace/whfig(2); whbut=whbut./whfig;
-        spposleft = zeros(sprow,4);
-        spposright = zeros(sprow,4);
-        bgpos = zeros(sprow,4);
-        rbsavetrcpos = zeros(sprow,4);
-        ypos = vspace*2+whbut(2);
-        for iR = 1:sprow
-            spposleft(iR,:) = [hspace ypos+vspace whsp(1)*2 whsp(2)];
-            spposright(iR,:) = [spposleft(iR,1)+spposleft(iR,3)+hspace*2 ypos+vspace whsp(1)*5 whsp(2)];
-            bgpos(iR,:) = [spposright(iR,1)+spposright(iR,3)+hspace ypos+vspace+whsp(2)/2 whrbg];
-            rbsavetrcpos(iR,:) = [(spposright(iR,1)+spposright(iR,3)+hspace+0.15*whrbg(1))*whfig(1) (ypos+vspace+whsp(2)/6)*whfig(2) whrb];
-            ypos = ypos+vspace+whsp(2);
-        end
-        spposleft = flipud(spposleft); spposright = flipud(spposright); bgpos = flipud(bgpos); rbsavetrcpos = round(flipud(rbsavetrcpos));
-        figure('Position', positionfig, 'Name', 'Traces 1');
-        savebut = uicontrol('parent', gcf, 'style', 'pushbutton', 'position', savebutpos,'string', 'Save selected','fontsize', fontsize, 'callback', {@cb_savetrcbut, figidx});
-        closebut =  uicontrol('parent', gcf, 'style', 'pushbutton', 'position', closebutpos,'string', 'Close (no saving)','fontsize', fontsize, 'callback', {@cb_closetrcbut});
-        iFig = 1; iSP = 1;
-        for iRoi = 1:numrois
-            tracesp1 = subplot('Position', spposleft(iSP,:),'Parent', gcf);
-            dFoFroi = mark_rois(dFoF,pr, roiidx(iRoi));
-            imagesc(dFoFroi, cscl);
-            axis off;
-            tracesp2 = subplot('Position', spposright(iSP,:),'Parent', gcf);
-            plot(traceInfo(traceidx(iRoi)).timestamp{1}, traceInfo(traceidx(iRoi)).binned_roi_av{1}, 'linewidth', 1, 'color', 'black');
-            ylabel(trcylabel); set(gca, 'fontsize', fontsize);
-            xlabel(trcxlabel); xlim(trcxrange);
-            bg = uibuttongroup('parent', gcf, 'visible', 'off', 'position', bgpos(iSP,:), 'SelectionChangedFcn', {@cb_traceswitchrb, traceidx, iRoi, tracesp2, trcxrange});
-            savetrcrb =uicontrol('parent', gcf,'style', 'radiobutton', 'position', rbsavetrcpos(iSP,:),'string', '  Save', 'Value', 1 ,'fontsize', fontsize, 'callback', {@cb_savetrcrb, traceidx, iRoi});
-            botrb = uicontrol('parent', bg,'style', 'radiobutton', 'position', rbbotpos,'string', '  DeltaF/F', 'Value', 0 ,'fontsize', fontsize, 'handlevisibility', 'off');
-            toprb = uicontrol('parent', bg, 'style', 'radiobutton', 'position', rbtoppos,'string', '  Average', 'Value', 1, 'fontsize', fontsize, 'handlevisibility', 'off');
-            bg.Visible = 'on';
-            if mod(iRoi,sprow) == 0 && iRoi < numrois
-                iFig = iFig+1; iSP = 1;
-                figure('Position', positionfig, 'Name', sprintf('Traces %i',iFig));
-                savebut = uicontrol('parent', gcf, 'style', 'pushbutton', 'position', savebutpos,'string', 'Save selected','fontsize', fontsize, 'callback', {@cb_savetrcbut});
-                closebut =  uicontrol('parent', gcf, 'style', 'pushbutton', 'position', closebutpos,'string', 'Close (no saving)','fontsize', fontsize, 'callback', {@cb_closetrcbut});
-            else
-                iSP = iSP+1;
+        if ~isempty(traceidx)
+            % Prepare display
+            spcol = 8; sprow = 3;
+            hspace = 20;
+            vspace = 30;
+            whbut = [100 25];
+            whsp = [floor((whfig(1)-5*hspace)/spcol) floor((whfig(2)-(sprow-1+4)*vspace-whbut(2))/sprow)];
+            whrbg = [whsp(1) round(whsp(2)/2)];
+            whrb = [round(0.8*whrbg(1)) round(whrbg(2)/3)];
+            savebutpos = [round(whfig(1)/2)-round(hspace/2)-whbut(1) round(vspace/2) whbut];
+            closebutpos = [round(whfig(1)/2)+round(hspace/2) round(vspace/2) whbut];
+            rbbotpos = [0.15*whrbg(1) round(whrb(2)*0.5) whrb];
+            rbtoppos = [0.15*whrbg(1) round(whrb(2)*1.5) whrb];
+            whsp = whsp./whfig; whrbg = whrbg./whfig; hspace = hspace/whfig(1); vspace = vspace/whfig(2); whbut=whbut./whfig;
+            spposleft = zeros(sprow,4);
+            spposright = zeros(sprow,4);
+            bgpos = zeros(sprow,4);
+            rbsavetrcpos = zeros(sprow,4);
+            ypos = vspace*2+whbut(2);
+            for iR = 1:sprow
+                spposleft(iR,:) = [hspace ypos+vspace whsp(1)*2 whsp(2)];
+                spposright(iR,:) = [spposleft(iR,1)+spposleft(iR,3)+hspace*2 ypos+vspace whsp(1)*5 whsp(2)];
+                bgpos(iR,:) = [spposright(iR,1)+spposright(iR,3)+hspace ypos+vspace+whsp(2)/2 whrbg];
+                rbsavetrcpos(iR,:) = [(spposright(iR,1)+spposright(iR,3)+hspace+0.15*whrbg(1))*whfig(1) (ypos+vspace+whsp(2)/6)*whfig(2) whrb];
+                ypos = ypos+vspace+whsp(2);
+            end
+            spposleft = flipud(spposleft); spposright = flipud(spposright); bgpos = flipud(bgpos); rbsavetrcpos = round(flipud(rbsavetrcpos));
+            figure('Position', positionfig, 'Name', 'Traces 1');
+            savebut = uicontrol('parent', gcf, 'style', 'pushbutton', 'position', savebutpos,'string', 'Save selected','fontsize', fontsize, 'callback', {@cb_savetrcbut, figidx});
+            closebut =  uicontrol('parent', gcf, 'style', 'pushbutton', 'position', closebutpos,'string', 'Close (no saving)','fontsize', fontsize, 'callback', {@cb_closetrcbut});
+            iFig = 1; iSP = 1;
+            for iRoi = 1:numrois
+                tracesp1 = subplot('Position', spposleft(iSP,:),'Parent', gcf);
+                dFoFroi = mark_rois(dFoF,pr, roiidx(iRoi));
+                imagesc(dFoFroi, cscl);
+                axis off;
+                tracesp2 = subplot('Position', spposright(iSP,:),'Parent', gcf);
+                plot(traceInfo(traceidx(iRoi)).timestamp{1}, traceInfo(traceidx(iRoi)).binned_roi_av{1}, 'linewidth', 1, 'color', 'black');
+                ylabel(trcylabel); set(gca, 'fontsize', fontsize);
+                xlabel(trcxlabel); xlim(trcxrange);
+                bg = uibuttongroup('parent', gcf, 'visible', 'off', 'position', bgpos(iSP,:), 'SelectionChangedFcn', {@cb_traceswitchrb, traceidx, iRoi, tracesp2, trcxrange});
+                savetrcrb =uicontrol('parent', gcf,'style', 'radiobutton', 'position', rbsavetrcpos(iSP,:),'string', '  Save', 'Value', 1 ,'fontsize', fontsize, 'callback', {@cb_savetrcrb, traceidx, iRoi});
+                botrb = uicontrol('parent', bg,'style', 'radiobutton', 'position', rbbotpos,'string', '  DeltaF/F', 'Value', 0 ,'fontsize', fontsize, 'handlevisibility', 'off');
+                toprb = uicontrol('parent', bg, 'style', 'radiobutton', 'position', rbtoppos,'string', '  Average', 'Value', 1, 'fontsize', fontsize, 'handlevisibility', 'off');
+                bg.Visible = 'on';
+                if mod(iRoi,sprow) == 0 && iRoi < numrois
+                    iFig = iFig+1; iSP = 1;
+                    figure('Position', positionfig, 'Name', sprintf('Traces %i',iFig));
+                    savebut = uicontrol('parent', gcf, 'style', 'pushbutton', 'position', savebutpos,'string', 'Save selected','fontsize', fontsize, 'callback', {@cb_savetrcbut});
+                    closebut =  uicontrol('parent', gcf, 'style', 'pushbutton', 'position', closebutpos,'string', 'Close (no saving)','fontsize', fontsize, 'callback', {@cb_closetrcbut});
+                else
+                    iSP = iSP+1;
+                end
             end
         end
     end
@@ -524,6 +537,7 @@ end
         % Determine ROIs to save
         if strcmp(mode, 'all')
             saverois = 1:size(roiInfo,2);
+            if isempty(roiInfo(end).position), saverois = saverois(1:end-1); end
         else
             saverois = find([traceInfo(:).save] == 1);
         end
@@ -546,7 +560,7 @@ end
             end
         end
         close(diafig);
-        okbox = msgbox('Files saved');
+        okbox = msgbox('Files saved', '', 'modal');
     end
 
 %% Local callback
@@ -610,20 +624,20 @@ end
     end
 
     function cb_deltrcbut(~,~)
-        del = [roiInfo(:).selected] == true;
+        del = find([roiInfo(:).selected] == true);
         nroi = size(roiInfo,2);
-        if isempty(roiInfo(end).position), del = del(1:end-1); nroi = nroi-1; end
-        if ~isempty(traceInfo.figID)
+        if isempty(roiInfo(end).position), nroi = nroi-1; end
+        if ~isempty(traceInfo(1).figID)
             deltrc = zeros(numel(del),1);
             for iE = 1:numel(del)
                 deltrc(iE) = [traceInfo(:).roiID] == roiInfo(del(iE)).ID;
             end
             traceInfo = traceInfo(~deltrc);
         end
-        if sum(del) == nroi
+        if numel(del) == nroi
             roiInfo = roiInfo(1); roiInfo(1).mask = []; roiInfo(1).position = []; roiInfo(1).name = []; roiInfo(1).ID = []; roiInfo(1).selected = []; roiInfo(1).saved = []; roiInfo(1).mode = []; roiInfo(1).plotrange = [];
         else
-            roiInfo = roiInfo(~del);
+            roiInfo(del) = [];
         end
         figures = get(groot,'Children');
         tmpfig = figures(strncmp({figures(:).Name}, 'Line',4));
@@ -637,7 +651,7 @@ end
     end
 
     function cb_showtrcbut(~,~)
-        if sum(roiInfo(:).selected) == 0
+        if sum([roiInfo(:).selected]) == 0
             msgbox('Please select a ROI first!');
         end
         traces_overview();
@@ -653,7 +667,7 @@ end
             roiInfo(1).ID = 1;
             roiInfo(1).name = 0; roiInfo(1).mask = 0; roiInfo(1).position = 0; roiInfo(1).selected = true; roiInfo(1).saved = 0; roiInfo(1).mode = 0; roiInfo(1).plotrange = 0;
         end
-        roicnt = roiInfo(end).ID;
+        roicnt = size(roiInfo,2);
         if strncmp(hObj.String, 'Line',4)
             roiInfo(roicnt).mask = false(size(tmpmtrx));
             roi1 = images.roi.Line(tmpax, 'linewidth', 2, 'InteractionsAllowed','none');
@@ -683,9 +697,10 @@ end
     end
 
     function cb_addroi(~, ~,fp, tmpmtrx, pr, cscui)
-        roicnt = roiInfo(end).ID;
+        roicnt = size(roiInfo,2);
+        if isempty(roicnt), roicnt = 1; end
         if isempty(roiInfo(roicnt).position)
-            msgbox('Please select a ROI!');
+            msgbox('Please draw a ROI first!');
         else
             roiInfo(roicnt).name = sprintf('ROI #%i',roiInfo(roicnt).ID);
             roiInfo(roicnt).saved = 0;
@@ -764,9 +779,11 @@ end
             % Saving path and name
             [spath, fname, ~] = fileparts(filepointer);
             savepath = uigetdir(spath);
-            savepointer = strcat(savepath,'\', fname,'_');
-            % Prepare for saving
-            save_files(savepointer, figidx, 'all');
+            if isa(savepath, 'char')
+                savepointer = strcat(savepath,'\', fname,'_');
+                % Prepare for saving
+                save_files(savepointer, figidx, 'all');
+            end
         end
     end
 
@@ -790,8 +807,10 @@ end
             savepath = uigetdir(spath);
             savepointer = strcat(savepath,'\', fname,'_');
         end
-        close gcf;
-        save_files(savepointer, figidx, 'selected');
+        if isa(savepath, 'char')
+            close gcf;
+            save_files(savepointer, figidx, 'selected');
+        end
     end
 
     function cb_closetrcbut(~,~)
