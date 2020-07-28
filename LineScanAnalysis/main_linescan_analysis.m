@@ -549,14 +549,15 @@ end
 %             valsc = scale_data(val, climraw);
             valroi = mark_rois(uint8(val),pr, saverois(iRoi));
             imwrite(valroi, strcat(sp,'AV_ROI_',num2str(iRoi),'.tif'), 'tif');
+            roiid = roiInfo(saverois(iRoi)).counter;
             if roiInfo(iRoi).mode == 1 % Line
                 [avvals,dFoFvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, [], 'whole');
-                writematrix(avvals, strcat(sp,'ROI_',num2str(saverois(iRoi)),'_AV_timetotal.csv'));
-                writematrix(dFoFvals, strcat(sp,'ROI_',num2str(saverois(iRoi)),'_dFoF_timetotal.csv'));
+                writematrix(avvals, strcat(sp,'ROI_',num2str(roiid),'_AV_timetotal.csv'));
+                writematrix(dFoFvals, strcat(sp,'ROI_',num2str(roiid),'_dFoF_timetotal.csv'));
             else
                 [avvals,dFoFvals,~] = calc_roi_av_trace(saverois(iRoi), val, pr, 'ROI');
-                writematrix(avvals, strcat(sp,'ROI_',num2str(saverois(iRoi)),'_AV.csv'));
-                writematrix(dFoFvals, strcat(sp,'ROI_',num2str(saverois(iRoi)),'_dFoF.csv'));
+                writematrix(avvals, strcat(sp,'ROI_',num2str(roiid),'_AV.csv'));
+                writematrix(dFoFvals, strcat(sp,'ROI_',num2str(roiid),'_dFoF.csv'));
             end
         end
         close(diafig);
