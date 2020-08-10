@@ -807,18 +807,18 @@ end
             set(diatxt,'string',[diatxtinfo,{'','...save ROI # ', num2str(roiid)}]);
             pause(0.2);
             if ~trcexists(iRoi)
-                if isline(iRoi), tmppr = [1 imhw(1)]; else, tmppr = pr; end
+                if roiInfo(iRoi).mode == 1, tmppr = [1 imhw(1)]; else, tmppr = pr; end
                 val = uint8(averaged(tmppr(1):tmppr(2),:));
                 markedroi = mark_rois(val,tmppr, saverois(iRoi));
                 scmarkedroi = scale_data(markedroi, climraw);
-                [avvals,dFoFvals,yrange,allvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, tmppr);
-                [evinfo, smoothed] = get_trc_params(allvals,[tmppr(1)+yrange(1)-1 tmppr(1)+yrange(2)-1], [],[]);
+                [avvals,dFoFvals,~,allvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, tmppr);
+                [evinfo, smoothed] = get_trc_params(allvals,tmppr);
                 crossings = evinfo.crossings;
                 supraT = evinfo.suprathreshold;
                 peaks = evinfo.peaks;
-                timestamp = ((tmppr(1)+yrange(1)-1)*ftime:ftime:(tmppr(1)+yrange(2)-1)*ftime)';
+                timestamp = (tmppr(1)*ftime:ftime:tmppr(2)*ftime)';
             else
-                if isline(iRoi)
+                if roiInfo(iRoi).mode == 1
                     avvals = traceInfo(traceidx(iRoi)).tot_binned_roi_av{1};
                     dFoFvals = traceInfo(traceidx(iRoi)).tot_dFoF_roi_av{1};
                     smoothed = traceInfo(traceidx(iRoi)).tot_smoothed{1};
@@ -837,11 +837,11 @@ end
                     timestamp = traceInfo(traceidx(iRoi)).timestamp{1};
                     evinfo =  traceInfo(traceidx(iRoi)).events;
                 end
+                writeMtrx = [timestamp avvals smoothed dFoFvals supraT crossings peaks];
                 scmarkedroi = traceInfo(traceidx(iRoi)).plotmarked{1};
             end
-            writeMtrx = [timestamp avvals smoothed dFoFvals supraT crossings peaks];
             imwrite(scmarkedroi, strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
-            writematrix(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(win_ms), '_thresh_', num2str(threshold),'_threshpk_', num2str(peakthreshold),'.csv'));
+            writematrix(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(win_ms), '_thresh_', num2str(threshold),'.csv'));
             % Save event info as table
             evTable = table();
             if isempty(evinfo.crossidx)
@@ -863,7 +863,7 @@ end
             evTable.av_intereventinterval_s = [evinfo.aviei; filler];
             evTable.av_peak_amp = [evinfo.avamp;filler];
             evTable.cv_iei = [evinfo.cviei; filler];
-            writetable(evTable, strcat(sp,'ROI_',num2str(roiid),'_eventinfo_binning_', num2str(wsz), '_smth_', num2str(win_ms), '_thresh_', num2str(threshold),'_threshpk_', num2str(peakthreshold),'.csv'));
+            writetable(evTable, strcat(sp,'ROI_',num2str(roiid),'_eventinfo.csv'));
         end
         close(diafig);
         okbox = msgbox('Files saved', '', 'modal');
@@ -1037,8 +1037,7 @@ end
         figures = get(groot,'Children');
         tmpfig = figures(strncmp({figures(:).Name}, 'Line',4));
         roilb = findobj(tmpfig, 'type', 'uicontrol', 'style', 'listbox');
-        set(roilb, 'string', '');
-        set(roilb, 'value', 0);
+        set(roilb, 'string', roiInfo.name);
         tmpfig = figures(1);
         roistxt = findobj(tmpfig, 'type', 'uicontrol', 'style', 'text');
         delete(roistxt(1:end-1));
