@@ -35,7 +35,6 @@ if isa(filenames,'cell') || isa(filenames,'char')
     threshlw = 1;
     threshla = 0.7;
     evplotcol = [0 0.1882 0.1059];
-%     baseFwin = 100;
     plotPeaks = true; % otherwise plot threshold crossings
     risetime = inputdlg('Upper limit sensor rise time [s]:','Sensor info', [1 60], {'0.2'});
     risetime = str2double(risetime{1});
@@ -120,7 +119,7 @@ end
 %% GUI functions
     function ini_ctrl_box()
         % Spacing parameteres
-        whctrl = [400 450];
+        whctrl = [430 450];
         vspace = [10 20 30]; % [small bigg bigger]
         hspace = [5 15]; % [ctr-aligned rest]
         hctr = round(whctrl(1)/2);
@@ -165,9 +164,9 @@ end
         title('Control Box', 'FontSize', round(fontsize*tfszmpl));
         
         % Add UI controls
-        deltrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', deltrcbutpos,'string', 'Delete ROIs','fontsize', fontsize, 'callback', {@cb_deltrcbut});
+        deltrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', deltrcbutpos,'string', 'Delete ROI','fontsize', fontsize, 'callback', {@cb_deltrcbut});
         showtrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', showtrcbutpos,'string', 'Show traces','fontsize', fontsize, 'callback', {@cb_showtrcbut});
-        saveallbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', saveallbutpos,'string', 'Save all ROIs','fontsize', fontsize, 'callback', {@cb_saveallbut});
+        saveallbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', saveallbutpos,'string', 'Save all','fontsize', fontsize, 'callback', {@cb_saveallbut});
         continuebut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', continuebutpos,'string', 'Next file','fontsize', fontsize, 'callback', {@cb_continuebut});
         
         threshtxt = uicontrol('parent', ctrlfig, 'style', 'text','position', threshtxtpos,'string', 'Threshold [s.d.]: start | peak','fontsize', fontsize);
@@ -245,8 +244,8 @@ end
         
         % Call Analysis functions
         if plotrange(2)>imhw(1), plotrange=[1 imhw(1)]; end % Make sure the plot range doesnt exceed sampling timepoints
-        raw = composite2D(plotrange(1):plotrange(2),:);
-        averaged = average_linescan(raw, winsz);
+        rawmtrx = composite2D(plotrange(1):plotrange(2),:);
+        averaged = average_linescan(rawmtrx, winsz);
         dFoF = deltaFovF_linescan(averaged);
         
         % Plot        
@@ -255,7 +254,7 @@ end
         colormap(scmap); 
         % Raw (scaled to 255)
 %         scraw = scale_data(raw, climraw);
-        scraw = uint8(raw);
+        scraw = uint8(rawmtrx);
         if ~isempty(roiInfo(1).ID), scrawroi = mark_rois(scraw,plotrange,'all'); else, scrawroi=scraw; end
         sp1 = subplot('Position', positionspul);
         im1 = imagesc(scrawroi, climraw);
@@ -294,7 +293,7 @@ end
             '', sprintf('Line averaging window size: %i',figInfo(figID).avwinsize),...
             '', sprintf('Colormap: %s', figInfo(figID).cscmap),...
             '', sprintf('Color scale limits: %i - %i', figInfo(figID).csclimits),...
-            '', sprintf('Time per frame: %s s', num2str(round(ftime),3))};
+            '', sprintf('Time per frame: %s s', num2str(round(ftime,3)))};
         positionspbr = positionspbr.*[whfig whfig]; positionspbr(2) = round(positionspbr(2)*0.75);
         infotxt = uicontrol('style','text', 'parent', currfig, 'position', positionspbr, 'String', currinfo,'fontsize', fontsize);
     end
@@ -375,7 +374,12 @@ end
         figures = get(groot,'Children');
         findfig = strncmp({figures(:).Name}, 'Fig',3);
         currfig = figures(find(findfig,1, 'first'));
-        figid = currfig.UserData;
+        if ~isempty(currfig)
+            figid = currfig.UserData;
+        else
+            warning('As no figure is open, the parameters of the last created figure are used');
+            figid = max([figInfo(:).IDs]);
+        end
         [~,figidx] = find([figInfo(:).IDs] == figid);
         pr = figInfo(figidx).plotrange;
         trcxrange = [pr(1)*ftime pr(2)*ftime]; %[s]
@@ -746,13 +750,13 @@ end
                 % .csv
                 set(diatxt,'string',[diatxtinfo,{'','...create .csv files.'}]);
                 pause(0.2);
-                writematrix(raw, strcat(sp,'raw.csv'));
+                writematrix(composite2D, strcat(sp,'raw.csv'));
                 writematrix(averaged, strcat(sp,'AV_bin_',num2str(wsz), '.csv'));
                 writematrix(dFoF, strcat(sp,'dFoF_bin_',num2str(wsz), '.csv'));
                 % .tifs
                 set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
                 pause(0.2);
-                vals = uint16(raw(pr(1):pr(2),:));
+                vals = uint16(composite2D(pr(1):pr(2),:));
                 imwrite(vals, strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
                 vals = uint16(averaged(pr(1):pr(2),:));
                 imwrite(vals, strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
@@ -807,18 +811,18 @@ end
             set(diatxt,'string',[diatxtinfo,{'','...save ROI # ', num2str(roiid)}]);
             pause(0.2);
             if ~trcexists(iRoi)
-                if roiInfo(iRoi).mode == 1, tmppr = [1 imhw(1)]; else, tmppr = pr; end
+                if isline(iRoi), tmppr = [1 imhw(1)]; else, tmppr = pr; end
                 val = uint8(averaged(tmppr(1):tmppr(2),:));
                 markedroi = mark_rois(val,tmppr, saverois(iRoi));
                 scmarkedroi = scale_data(markedroi, climraw);
-                [avvals,dFoFvals,~,allvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, tmppr);
-                [evinfo, smoothed] = get_trc_params(allvals,tmppr);
+                [avvals,dFoFvals,yrange,allvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, tmppr);
+                [evinfo, smoothed] = get_trc_params(allvals,[tmppr(1)+yrange(1)-1 tmppr(1)+yrange(2)-1], [],[]);
                 crossings = evinfo.crossings;
                 supraT = evinfo.suprathreshold;
                 peaks = evinfo.peaks;
-                timestamp = (tmppr(1)*ftime:ftime:tmppr(2)*ftime)';
+                timestamp = ((tmppr(1)+yrange(1)-1)*ftime:ftime:(tmppr(1)+yrange(2)-1)*ftime)';
             else
-                if roiInfo(iRoi).mode == 1
+                if isline(iRoi)
                     avvals = traceInfo(traceidx(iRoi)).tot_binned_roi_av{1};
                     dFoFvals = traceInfo(traceidx(iRoi)).tot_dFoF_roi_av{1};
                     smoothed = traceInfo(traceidx(iRoi)).tot_smoothed{1};
@@ -837,11 +841,11 @@ end
                     timestamp = traceInfo(traceidx(iRoi)).timestamp{1};
                     evinfo =  traceInfo(traceidx(iRoi)).events;
                 end
-                writeMtrx = [timestamp avvals smoothed dFoFvals supraT crossings peaks];
                 scmarkedroi = traceInfo(traceidx(iRoi)).plotmarked{1};
             end
+            writeMtrx = [timestamp avvals smoothed dFoFvals supraT crossings peaks];
             imwrite(scmarkedroi, strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
-            writematrix(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(win_ms), '_thresh_', num2str(threshold),'.csv'));
+            writematrix(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(win_ms), '_thresh_', num2str(threshold),'_threshpk_', num2str(peakthreshold),'.csv'));
             % Save event info as table
             evTable = table();
             if isempty(evinfo.crossidx)
@@ -863,7 +867,7 @@ end
             evTable.av_intereventinterval_s = [evinfo.aviei; filler];
             evTable.av_peak_amp = [evinfo.avamp;filler];
             evTable.cv_iei = [evinfo.cviei; filler];
-            writetable(evTable, strcat(sp,'ROI_',num2str(roiid),'_eventinfo.csv'));
+            writetable(evTable, strcat(sp,'ROI_',num2str(roiid),'_eventinfo_binning_', num2str(wsz), '_smth_', num2str(win_ms), '_thresh_', num2str(threshold),'_threshpk_', num2str(peakthreshold),'.csv'));
         end
         close(diafig);
         okbox = msgbox('Files saved', '', 'modal');
@@ -936,7 +940,7 @@ end
         if ~isempty(traceInfo(1).figID)
             deltrc = zeros(numel(del),1);
             for iE = 1:numel(del)
-                deltrc(iE) = [traceInfo(:).roiID] == roiInfo(del(iE)).ID;
+                deltrc(iE) = find([traceInfo(:).roiID] == roiInfo(del(iE)).ID);
             end
             traceInfo = traceInfo(~deltrc);
         end
@@ -1027,7 +1031,7 @@ end
                     uicontrol('style','text','parent',tmpfig,'position', tmppos,'string',num2str(iC), 'fontsize', fontsize)
                 end
             end
-            roiInfo(roicnt+1).ID = roicnt+1;
+            roiInfo(roicnt+1).ID = max([roiInfo(:).ID])+1;
         end
     end
 
@@ -1037,7 +1041,8 @@ end
         figures = get(groot,'Children');
         tmpfig = figures(strncmp({figures(:).Name}, 'Line',4));
         roilb = findobj(tmpfig, 'type', 'uicontrol', 'style', 'listbox');
-        set(roilb, 'string', roiInfo.name);
+        set(roilb, 'string', '');
+        set(roilb, 'value', 0);
         tmpfig = figures(1);
         roistxt = findobj(tmpfig, 'type', 'uicontrol', 'style', 'text');
         delete(roistxt(1:end-1));
