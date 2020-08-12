@@ -4,7 +4,7 @@ function ini_ctrl_box()
 global SCRSZ FNAME FONTSIZE SCMAPDDITEMS SCMAP WINSZDDITEMS WINSZ...
     PLOTRANGE CLIMUI THRESHOLD PEAKTHRESHOLD SMTHWIN...
     figINFO roiINFO traceINFO FTIME...
-    CURRFILE NUMFILES SAVEPARENT FULLFILENAMES IMMETA
+    CURRFILE NUMFILES SAVEPARENT FULLFILENAMES IMMETA IMHW
 
 % Initiate (display) variables
 whctrl = [430 450];
@@ -152,6 +152,7 @@ uiwait;
 
     function cb_rangein2(hObj,~)
         PLOTRANGE(2) = str2double(get(hObj,'String'));
+        if PLOTRANGE(2) > IMHW(1), PLOTRANGE(2) = IMHW(1); set(hObj,'String', num2str(PLOTRANGE(2))); end
     end
 
     function cb_roilb(hObj,~)
@@ -184,11 +185,12 @@ uiwait;
             nroi = size(roiINFO,2);
             if isempty(roiINFO(end).position), nroi = nroi-1; end
             if ~isempty(traceINFO(1).figID)
-                deltrc = zeros(numel(del),1);
+                deltrc = [];
                 for iE = 1:numel(del)
-                    deltrc(iE) = find([traceINFO(:).roiID] == roiINFO(del(iE)).ID);
+                    tmpdel = find([traceINFO(:).roiID] == roiINFO(del(iE)).ID);
+                    deltrc = [deltrc tmpdel];
                 end
-                traceINFO = traceINFO(~deltrc);
+                traceINFO(deltrc) = [];
             end
             if numel(del) == nroi
                 roiINFO = roiINFO(1); roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).name = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
