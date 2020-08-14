@@ -1,6 +1,6 @@
-function [] = open_file(filepointer)
+function [] = open_file(filepointer, rangein1, rangein2)
 
-global IMHW COMPOSITE2D FTIME SPATH FNAME IMMETA
+global IMHW COMPOSITE2D FTIME SPATH FNAME IMMETA PLOTRANGE
 
 [SPATH, FNAME, ~] = fileparts(filepointer);
 [tmpstack, imInfo] = load_bf_file(filepointer, true);
@@ -27,5 +27,9 @@ figures = get(groot,'Children');
 tmpfig = figures(strncmp({figures(:).Name}, 'Line',4));
 namebox = findobj(tmpfig, 'type', 'uicontrol', 'style', 'text');
 set(namebox(1), 'string', FNAME);
+
+PLOTRANGE = [1 size(COMPOSITE2D,1)];
+set(rangein1,'String', num2str(PLOTRANGE(1)));
+set(rangein2,'String', num2str(PLOTRANGE(2)));
 
 end

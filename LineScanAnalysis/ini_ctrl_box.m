@@ -4,7 +4,7 @@ function ini_ctrl_box()
 global SCRSZ FNAME FONTSIZE SCMAPDDITEMS SCMAP WINSZDDITEMS WINSZ...
     PLOTRANGE CLIMUI THRESHOLD PEAKTHRESHOLD SMTHWIN...
     figINFO roiINFO traceINFO FTIME...
-    CURRFILE NUMFILES SAVEPARENT FULLFILENAMES IMMETA IMHW
+    CURRFILE NUMFILES SAVEPARENT FULLFILENAMES IMMETA IMHW FIGCOUNTER ROICNTID
 
 % Initiate (display) variables
 whctrl = [430 450];
@@ -91,16 +91,15 @@ metabut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', metabu
 uiwait;
 
 %% Local callbacks
-
     function cb_openbut(~,~)
         [filenames, pathnames] = uigetfile({'*.nd2'; '*.tif'}, 'Multiselect', 'on'); % Select (multiple) files for processing
         if isa(filenames,'cell') || isa(filenames,'char')
             if ~isa(filenames,'cell'), filenames = {filenames}; end
-            SAVEPARENT = uigetdir(pathnames, 'Parent folder for saving');   % Select path for parent folder of saved files
+            if isempty(SAVEPARENT), SAVEPARENT = uigetdir(pathnames, 'Parent folder for saving'); end % Select path for parent folder of saved files
             FULLFILENAMES = fullfile(pathnames, filenames);
             NUMFILES = size(filenames,2);
             filepointer = FULLFILENAMES{CURRFILE};
-            open_file(filepointer);
+            open_file(filepointer, rangein1, rangein2);
         end
     end
 
@@ -148,11 +147,13 @@ uiwait;
 
     function cb_rangein1(hObj,~)
         PLOTRANGE(1) = str2double(get(hObj,'String'));
+        if PLOTRANGE(1) > IMHW(1) || PLOTRANGE(1) >= PLOTRANGE(2), PLOTRANGE(1) = 1; set(hObj,'String', num2str(PLOTRANGE(1))); end
     end
 
     function cb_rangein2(hObj,~)
         PLOTRANGE(2) = str2double(get(hObj,'String'));
         if PLOTRANGE(2) > IMHW(1), PLOTRANGE(2) = IMHW(1); set(hObj,'String', num2str(PLOTRANGE(2))); end
+        if PLOTRANGE(2) <= PLOTRANGE(1), PLOTRANGE(2) = PLOTRANGE(1) + 100; set(hObj,'String', num2str(PLOTRANGE(2))); end
     end
 
     function cb_roilb(hObj,~)
@@ -250,9 +251,14 @@ uiwait;
                 tmpfig = figures(~strncmp({figures(:).Name}, 'Line',4));
                 for iF = 1:numel(tmpfig), close(tmpfig(iF)); end
                 filepointer = FULLFILENAMES{CURRFILE};
-                open_file(filepointer);
+                open_file(filepointer, rangein1, rangein2);
             end
         end
+        roiINFO = struct(); roiINFO(1).name = []; roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
+        figINFO = struct('IDs', [], 'name', [], 'PLOTRANGE',[], 'cSCMAP',[], 'csclimits', [], 'avwinsize',[], 'saved',[]);
+        traceINFO = struct('figID',[], 'fig_params',[],'roiID',[], 'binned_roi_av',[],'dFoF_roi_av',[], 'timestamp',[], 'save',[], 'currmode',[], 'showtot', []);
+        FIGCOUNTER = 0;
+        ROICNTID = 1;
     end
 
     function cb_nosavengobut(~,~)
@@ -281,9 +287,14 @@ uiwait;
                 tmpfig = figures(~strncmp({figures(:).Name}, 'Line',4));
                 for iF = 1:numel(tmpfig), close(tmpfig(iF)); end
                 filepointer = FULLFILENAMES{CURRFILE};
-                open_file(filepointer);
+                open_file(filepointer, rangein1, rangein2);
             end
         end
+        roiINFO = struct(); roiINFO(1).name = []; roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
+        figINFO = struct('IDs', [], 'name', [], 'PLOTRANGE',[], 'cSCMAP',[], 'csclimits', [], 'avwinsize',[], 'saved',[]);
+        traceINFO = struct('figID',[], 'fig_params',[],'roiID',[], 'binned_roi_av',[],'dFoF_roi_av',[], 'timestamp',[], 'save',[], 'currmode',[], 'showtot', []);
+        FIGCOUNTER = 0;
+        ROICNTID = 1;
     end
 
 end
