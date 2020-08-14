@@ -34,11 +34,11 @@ trcpkthreshold = av + PEAKTHRESHOLD*sd;
 
 % Exclusion criterion 1 - SD value: if sd value too low, presumably smoothing was too
 % strong and likelihood of false positives increases a lot
-if sd/av < 0.05
-    aboveT = false(size(smoothed));
-    crossing = aboveT; peaks = aboveT;
-    crossidx = NaN; peakidx = NaN; amps = NaN; ieis = NaN; eventrate = NaN; cviei = NaN; evkey = 'NaN';
-else
+% if sd/av < 0.05
+%     aboveT = false(size(smoothed));
+%     crossing = aboveT; peaks = aboveT;
+%     crossidx = NaN; peakidx = NaN; amps = NaN; ieis = NaN; eventrate = NaN; cviei = NaN; evkey = 'NaN';
+% else
     aboveT = smoothed >= trcthreshold;                                      % Binarized vector indicating all points above threshold
     crossing = false(size(aboveT));                                         % Binarized vector indicating points of threshold crossing
     
@@ -85,8 +85,9 @@ else
     else, ieis = diff(crossidx).*FTIME; evkey = 'crossing';
     end
     cviei = std(ieis)/mean(ieis);
-    eventrate = numel(crossidx)/(numel(smoothed)*FTIME); % [Hz]
-end
+%     eventrate = numel(crossidx)/(numel(smoothed)*FTIME); % Eventrate calculated from number of events [Hz]
+    eventrate = 1/median(ieis); % Eventrate calculated from intereventintervals [Hz]
+% end
 
 % Save information in struct
 events=struct();

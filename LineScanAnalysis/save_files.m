@@ -15,39 +15,41 @@ pause(0.5);
 pr = figINFO(fi).plotrange;
 wsz = figINFO(fi).avwinsize;
 
-% if ~figINFO(fi).saved
-%     answer = questdlg('Do you want to save the full 2D matrix (raw, average, dFoF) as .csv ?', 'Saving', 'Yes','No','Yes');
-%     if strcmp(answer, 'Yes')
-%         % Save ROI-unrelated stuff
-%         averaged = average_linescan(COMPOSITE2D, wsz);
-%         dFoF = deltaFovF_linescan(averaged);
+if ~figINFO(fi).saved
+    answer = questdlg('Do you want to save the 2D matrix as .tif ?', 'Saving', 'Yes','No','Yes');
+    if strcmp(answer, 'Yes')
+        % Save ROI-unrelated stuff
+        averaged = average_linescan(COMPOSITE2D, wsz);
+        dFoF = deltaFovF_linescan(averaged);
 %         % .csv
 %         set(diatxt,'string',[diatxtinfo,{'','...create .csv files.'}]);
 %         pause(0.2);
 %         writematrix(COMPOSITE2D, strcat(sp,'raw.csv'));
 %         writematrix(averaged, strcat(sp,'AV_bin_',num2str(wsz), '.csv'));
 %         writematrix(dFoF, strcat(sp,'dFoF_bin_',num2str(wsz), '.csv'));
-%         % .tifs
-%         set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
-%         pause(0.2);
-%         vals = uint8(COMPOSITE2D(pr(1):pr(2),:));
-%         imwrite(vals, strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-%         vals = uint8(averaged(pr(1):pr(2),:));
-%         imwrite(vals, strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-%         vals = uint8(dFoF(pr(1):pr(2),:));
-%         imwrite(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-%         figINFO(fi).saved = true;
-%     end
-% else
-%     answer = 'No';
-% end
+        % .tifs
+        set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
+        pause(0.2);
+        vals = uint8(COMPOSITE2D(pr(1):pr(2),:));
+        imwrite(vals, strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
+        vals = uint8(averaged(pr(1):pr(2),:));
+        imwrite(vals, strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
+        vals = uint8(dFoF(pr(1):pr(2),:));
+        imwrite(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
+        figINFO(fi).saved = true;
+    end
+else
+    answer = 'No';
+end
 
 % Determine ROIs to save
 if strcmp(mode, 'all')
     saverois = 1:size(roiINFO,2);
     if isempty(roiINFO(end).position), saverois = saverois(1:end-1); end
 else
-    saverois = find([traceINFO(:).save] == 1);
+    saveroisidx = [traceINFO([traceINFO(:).save] == 1).roiID];
+    saverois = [];
+    for iE = 1:numel(saveroisidx), saverois = [saverois find([roiINFO(:).ID] == saveroisidx(iE))]; end
 end
 
 % Check if data already exist
@@ -122,6 +124,7 @@ for iRoi = 1:numel(saverois)
     writeMtrx = array2table(writeMtrx, 'VariableNames', {'frametime_s', 'ROI_average', 'ROI_smth_average','ROI_dFoF', 'threshold_binary','crossing_binary', 'peak_binary'});
     imwrite(scmarkedroi, strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
     writetable(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(SMTHWIN), '_thresh_', num2str(THRESHOLD),'_threshpk_', num2str(PEAKTHRESHOLD),'.csv'));
+    
     % Save event info as table
     evTable = table();
     if isempty(evinfo.crossidx)
@@ -137,6 +140,10 @@ for iRoi = 1:numel(saverois)
     end
     lt = size(evinfo.crossidx,1);
     if lt > 1, filler = repelem({''},lt-1)'; else, filler = []; end
+    evTable.roi_start_x = [roiINFO(saverois(iRoi)).position(1); filler];
+    evTable.roi_end_x = [roiINFO(saverois(iRoi)).position(1)+roiINFO(saverois(iRoi)).position(3); filler];
+    evTable.roi_start_y = [roiINFO(saverois(iRoi)).position(2); filler];
+    evTable.roi_end_y = [roiINFO(saverois(iRoi)).position(2)+roiINFO(saverois(iRoi)).position(4); filler];
     evTable.threshold = [evinfo.threshold; filler];
     evTable.event_type = [evinfo.eventtype; filler];
     evTable.av_eventrate_Hz = [evinfo.eventrate; filler];

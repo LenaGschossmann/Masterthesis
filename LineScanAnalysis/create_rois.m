@@ -1,7 +1,7 @@
 function create_rois(tmpmtrx, figID, cscui)
 
 % Declare globally shared variables
-global WHFIG POSITIONFIG POSITIONROISELECT FONTSIZE CLIMRAW figINFO roiINFO IMHW
+global WHFIG POSITIONFIG POSITIONROISELECT FONTSIZE CLIMRAW figINFO roiINFO IMHW ROICNTID
 
 fp = find([figINFO(:).IDs] == figID);
 if isempty(roiINFO(1).ID), roitot = 0; else, roitot = size(roiINFO,2)-1; end
@@ -43,11 +43,11 @@ roistxt  = uicontrol('parent', roifig, 'style', 'text','position', roistxtpos,'s
 %% Local Callbacks
     function cb_drawroi(hObj, ~, tmpax, pr)
         try
-            if isempty(roiINFO(1).ID)
-                roiINFO(1).ID = 1;
-                roiINFO(1).name = 0; roiINFO(1).mask = 0; roiINFO(1).position = 0; roiINFO(1).selected = true; roiINFO(1).saved = 0; roiINFO(1).mode = 0; roiINFO(1).plotrange = 0;
-            end
+%             if isempty(roiINFO(1).ID)
+%                 roiINFO(1).name = 0; roiINFO(1).mask = 0; roiINFO(1).position = 0; roiINFO(1).selected = true; roiINFO(1).saved = 0; roiINFO(1).mode = 0; roiINFO(1).plotrange = 0;
+%             end
             roicnt = size(roiINFO,2);
+%             if isempty(roicnt), roicnt = 1; end
             if strncmp(hObj.String, 'Line',4)
                 roiINFO(roicnt).mask = false(IMHW);
                 roi1 = images.roi.Line(tmpax, 'linewidth', 2, 'InteractionsAllowed','none');
@@ -56,14 +56,14 @@ roistxt  = uicontrol('parent', roifig, 'style', 'text','position', roistxtpos,'s
                 draw(roi2);
                 x = sort([round(mean(roi1.Position(:,1))) round(mean(roi2.Position(:,1)))], 'ascend');
                 roiINFO(roicnt).mask(:,x(1):x(2)) = true;
-                roiINFO(roicnt).position = roi1.Position(1,:);
+                roiINFO(roicnt).position = [x(1) 1 diff(x)+1 IMHW(1)];
                 roiINFO(roicnt).mode = 1;
                 roiINFO(roicnt).plotrange = [1 IMHW(1)];
             elseif strncmp(hObj.String, 'Rect',4)
                 roi = images.roi.Rectangle(tmpax, 'FaceAlpha', 0.2, 'InteractionsAllowed','none');
                 draw(roi);
                 roiINFO(roicnt).mask = createMask(roi);
-                roiINFO(roicnt).position = roi.Position(1:2);
+                roiINFO(roicnt).position = roi.Position();
                 roiINFO(roicnt).mode = 2;
                 roiINFO(roicnt).plotrange = pr;
             end
@@ -72,11 +72,10 @@ roistxt  = uicontrol('parent', roifig, 'style', 'text','position', roistxtpos,'s
 
     function cb_addroi(~, ~,fp, tmpmtrx, pr, cscui)
         roicnt = size(roiINFO,2);
-        if isempty(roicnt), roicnt = 1; end
         if isempty(roiINFO(roicnt).position)
             msgbox('Please draw a ROI first!');
         else
-            roiINFO(roicnt).name = sprintf('ROI #%i',roiINFO(roicnt).ID);
+            roiINFO(roicnt).name = sprintf('ROI #%i',ROICNTID);
             roiINFO(roicnt).saved = 0;
             if roicnt == 1, roiINFO(roicnt).selected = true;
             else, roiINFO(roicnt).selected = false;
@@ -96,12 +95,14 @@ roistxt  = uicontrol('parent', roifig, 'style', 'text','position', roistxtpos,'s
             for iC = 1:size(roiINFO,2)
                 if ~isempty(roiINFO(iC).position)
                     tmppos = [WHFIG.*POSITIONROISELECT(1:2)+...
-                        roiINFO(iC).position.*(WHFIG.*POSITIONROISELECT(3:4)./fliplr(size(tmpmtrx))) 15 15];
+                        roiINFO(iC).position(1:2).*(WHFIG.*POSITIONROISELECT(3:4)./fliplr(size(tmpmtrx))) 15 15];
                     tmppos(2) = WHFIG(2)-tmppos(2);
                     uicontrol('style','text','parent',tmpfig,'position', tmppos,'string',num2str(iC), 'fontsize', FONTSIZE)
                 end
             end
-            roiINFO(roicnt+1).ID = max([roiINFO(:).ID])+1;
+            roiINFO(roicnt).ID = ROICNTID;
+            ROICNTID = ROICNTID+1;
+            roiINFO(roicnt+1).ID = 0;
         end
     end
 

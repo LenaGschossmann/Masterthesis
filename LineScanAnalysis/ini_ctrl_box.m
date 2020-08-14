@@ -191,6 +191,10 @@ uiwait;
                     deltrc = [deltrc tmpdel];
                 end
                 traceINFO(deltrc) = [];
+                if isempty(traceINFO)
+                    traceINFO(1).figID = []; traceINFO(1).fig_params = []; traceINFO(1).roiID = []; traceINFO(1).binned_roi_av = [];
+                    traceINFO(1).dFoF_roi_av = []; traceINFO(1).timestamp = []; traceINFO(1).save = []; traceINFO(1).currmode = []; traceINFO(1).showtot = [];
+                end
             end
             if numel(del) == nroi
                 roiINFO = roiINFO(1); roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).name = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
