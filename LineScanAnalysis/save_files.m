@@ -34,8 +34,14 @@ if ~figINFO(fi).saved
         imwrite(vals, strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
         vals = uint8(averaged(pr(1):pr(2),:));
         imwrite(vals, strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        vals = uint8(dFoF(pr(1):pr(2),:));
-        imwrite(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
+        vals = dFoF(pr(1):pr(2),:);
+        tic
+        writematrix(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.csv'));
+        toc
+%         fid = fopen(strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.txt'), 'w');
+%         fwrite(fid, vals, 'double');
+%         fclose(fid);
+%         imwrite(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
         figINFO(fi).saved = true;
     end
 else

@@ -46,4 +46,3 @@ SAVEPARENT = [];
 
 close all;
 ini_ctrl_box();
-close all;

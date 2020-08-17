@@ -245,7 +245,7 @@ uiwait;
             CURRFILE = CURRFILE +1;
             if CURRFILE > NUMFILES
                 disp('All files have been handled.');
-                uiresume();
+                uiresume(); close all;
             else
                 figures = get(groot,'Children');
                 tmpfig = figures(~strncmp({figures(:).Name}, 'Line',4));
@@ -281,7 +281,7 @@ uiwait;
             CURRFILE = CURRFILE +1;
             if CURRFILE > NUMFILES
                 disp('All files have been handled.');
-                uiresume();
+                uiresume(); close all;
             else
                 figures = get(groot,'Children');
                 tmpfig = figures(~strncmp({figures(:).Name}, 'Line',4));
