@@ -18,9 +18,15 @@ IMHW = size(COMPOSITE2D);
 % Frametime from metadata
 IMMETA =imInfo.metadata;
 timestrings = flipud(IMMETA(strncmp(IMMETA, 'timestamp',9)));
-ftimeseries = cellfun(@(x) regexp(x,'= ','split'), timestrings,'UniformOutput', false);
-ftimeseries = cellfun(@(x) str2double(x{2}), ftimeseries, 'UniformOutput', false);
-FTIME = mean(diff(cell2mat(ftimeseries)))/dims(1); %[s]
+timesplit = cellfun(@(x) regexp(x,'= ','split'), timestrings,'UniformOutput', false);
+sortsplit = cellfun(@(x) x{1}, timesplit, 'UniformOutput', false);
+timesplit = cellfun(@(x) str2double(x{2}), timesplit, 'UniformOutput', false);
+sortsplit = cellfun(@(x) regexp(x,'#','split'), sortsplit,'UniformOutput', false);
+sortsplit = cellfun(@(x) str2double(x{2}), timesplit, 'UniformOutput', false);
+sortsplit = cell2mat(sortsplit);
+[~,sortidx] = sort(sortsplit, 'ascend');
+timeseries = cell2mat(ftimeseries); timeseries = timeseries(sortidx);
+FTIME = mean(diff(timeseries))/dims(1); %[s]
 
 % Update name in control box figure
 figures = get(groot,'Children');
