@@ -22,10 +22,10 @@ timesplit = cellfun(@(x) regexp(x,'= ','split'), timestrings,'UniformOutput', fa
 sortsplit = cellfun(@(x) x{1}, timesplit, 'UniformOutput', false);
 timesplit = cellfun(@(x) str2double(x{2}), timesplit, 'UniformOutput', false);
 sortsplit = cellfun(@(x) regexp(x,'#','split'), sortsplit,'UniformOutput', false);
-sortsplit = cellfun(@(x) str2double(x{2}), timesplit, 'UniformOutput', false);
+sortsplit = cellfun(@(x) str2double(x{2}), sortsplit, 'UniformOutput', false);
 sortsplit = cell2mat(sortsplit);
 [~,sortidx] = sort(sortsplit, 'ascend');
-timeseries = cell2mat(ftimeseries); timeseries = timeseries(sortidx);
+timeseries = cell2mat(timesplit); timeseries = timeseries(sortidx);
 FTIME = mean(diff(timeseries))/dims(1); %[s]
 
 % Update name in control box figure
