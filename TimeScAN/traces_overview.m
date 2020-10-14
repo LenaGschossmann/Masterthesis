@@ -1,10 +1,9 @@
 function traces_overview(showalltr, showevents)
 
 % Declare globally shared variables
-global WHTRCFIG POSITIONTRCFIG FONTSIZE CLIMRAW TRCYLABEL TRCXLABEL TRCPLOTCOL1...
-    TRCALPHA THRESHLW THRESHALPHA EVPLOTCOL PLOTPEAKS THRESHOLD PEAKTHRESHOLD SMTHWIN...
-    figINFO roiINFO traceINFO FTIME SAVEPARENT FNAME...
-    TRACEID TRACEDATA ROILIST RANGE TOTP evINFO LW1 LW2
+global WHTRCFIG POSITIONTRCFIG FONTSIZE TRCYLABEL TRCXLABEL TRCPLOTCOL1...
+    TRCALPHA THRESHLW THRESHALPHA EVPLOTCOL PLOTPEAKS SMTHWIN...
+    TRACEID TRACEDATA ROILIST RANGE evINFO LW1 LW2 FTIMEVEC XTYPE
 
 
 % Check input
@@ -17,8 +16,9 @@ end
 disptr = TRACEDATA(RANGE(1):RANGE(2), seltrace);
 dispid = ROILIST(seltrace);
 numtr = size(disptr,2);
-timeptstot = (1:TOTP).*FTIME;
-timepts = timeptstot(RANGE(1):RANGE(2));
+if strcmp(XTYPE,'s'), timepts = FTIMEVEC(RANGE(1):RANGE(2));
+else, timepts = RANGE(1):RANGE(2);
+end
 if SMTHWIN ~= 0
     showsmth = true;
     disptrsmth = zeros(size(disptr));
@@ -28,10 +28,15 @@ else
 end
 
 %% Display parameters
-if showevents, spcol = 7; else, spcol = 1; end
-if numtr > 6, sprow = 6; else, sprow = numtr; end
+if showevents
+    spcol = 7;
+    if numtr > 4, sprow = 4; else, sprow = numtr; end
+else
+    spcol = 1;
+    if numtr > 6, sprow = 6; else, sprow = numtr; end
+end
 hspace = 40;
-vspace = 40;
+vspace = 50;
 if showevents, whsp = [floor((WHTRCFIG(1)-3*hspace)/spcol) (WHTRCFIG(2)-(sprow+2)*vspace)/sprow];
 else, whsp = [WHTRCFIG(1)-2*hspace (WHTRCFIG(2)-(sprow+1)*vspace)/sprow];
 end
@@ -41,7 +46,7 @@ sppos1 = zeros(sprow,4);
 sppos2 = zeros(sprow,4);
 ypos = 0;
 for iR = 1:sprow
-    if showevents, sppos1(iR,:) = [hspace ypos+vspace whsp(1)*4 whsp(2)];
+    if showevents, sppos1(iR,:) = [hspace ypos+vspace whsp(1)*6 whsp(2)];
     else, sppos1(iR,:) = [hspace ypos+vspace whsp(1) whsp(2)];
     end
     if showevents, sppos2(iR,:) = [sppos1(iR,1)+sppos1(iR,3)+hspace ypos+vspace whsp(1) whsp(2)]; end
@@ -53,29 +58,36 @@ figure('Position', POSITIONTRCFIG, 'Name', 'Traces 1');
 iFig = 1; iSP = 1;
 for iTr = 1:numtr
     sp1 = subplot('Position', sppos1(iSP,:),'Parent', gcf);
-    t1 = plot(timepts, disptr(:,iTr),'linewidth', LW1, 'color', TRCPLOTCOL1); t1.Color(4) = TRCALPHA;
-    if showsmth, hold on; t2 = plot(timepts, disptrsmth(:,iTr),'linewidth', LW2, 'color', 'black'); end
+    t1 = plot(timepts, disptr(:,iTr),'linewidth', LW1, 'color', TRCPLOTCOL1);
+    if showsmth
+        t1.Color(4) = TRCALPHA;
+        hold on; t2 = plot(timepts, disptrsmth(:,iTr),'linewidth', LW2, 'color', 'black');
+    end
     title(dispid{iTr});
-    if mod(iTr,sprow) == 0, xlabel(TRCXLABEL); end
+    if mod(iTr,sprow) == 0 || iTr == numtr, xlabel(TRCXLABEL); end
     ylabel(TRCYLABEL);
     set(gca, 'FONTSIZE', FONTSIZE);
     xlim([timepts(1), timepts(end)]);
-    if showevents
-        hold on, ty = yline(eventINFO(iTr).threshold, 'color', [0 0 0], 'linewidth', THRESHLW); ty.Color(4) = THRESHALPHA;
-        ty = yline(eventINFO(iTr).peakthreshold, 'color', [0 0 0], 'linewidth', THRESHLW/2); ty.Color(4) = THRESHALPHA;
-        if PLOTPEAKS, evidx = timeptstot(eventINFO(iTr).peakidx);
-        else, evidx = timeptstot(eventINFO(iTr).crossidx);
+    if showevents && strcmp(evINFO(seltrace(iTr)).accepted,'accepted')
+        if strcmp(evINFO(seltrace(iTr)).thresholdtype, 'sd')
+            hold on, ty = yline(evINFO(seltrace(iTr)).threshold, 'color', [0 0 0], 'linewidth', THRESHLW);
+            ty.Color(4) = THRESHALPHA;
+            ty = yline(evINFO(seltrace(iTr)).peakthreshold, 'color', [0 0 0], 'linewidth', THRESHLW/2);
+            ty.Color(4) = THRESHALPHA;
+        end
+        if PLOTPEAKS, evidx = timepts(evINFO(seltrace(iTr)).peakidx);
+        else, evidx = timepts(evINFO(seltrace(iTr)).crossidx);
         end
         
-        for iE = 1:numel(evidx), hold on; xline(evidx(iE), 'Linewidth',lw3, 'Color', EVPLOTCOL); end
-        annotxt = {sprintf('Average | SD: %s  |  %s', num2str(eventsINFO(iTr).average,3), num2str(eventsINFO(iTr).sd,3)),...
-            sprintf('Threshold: %s', num2str(eventsINFO(iTr).threshold,3)),...
-            sprintf('Threshold peak: %s', num2str(eventsINFO(iTr).peakthreshold,3)),...
-            sprintf('Event type: %s', eventsINFO(iTr).eventtype),...
-            sprintf('Av. Inter-event-interval: %s s', num2str(eventsINFO(iTr).aviei,3)), ...
-            sprintf('CV IEI: %s', num2str(eventsINFO(iTr).cviei,3)),...
-            sprintf('Av. Amplitude: %s', num2str(eventsINFO(iTr).avamp,3)),...
-            sprintf('Av. Eventrate: %s Hz', num2str(eventsINFO(iTr).eventrate,3))};
+        for iE = 1:numel(evidx), hold on; xline(evidx(iE), 'Linewidth',LW1, 'Color', EVPLOTCOL); end
+        annotxt = {sprintf('Average | SD: %s  |  %s', num2str(evINFO(seltrace(iTr)).average,3), num2str(evINFO(seltrace(iTr)).sd,3)),...
+            sprintf('Threshold: %s', num2str(evINFO(seltrace(iTr)).threshold,3)),...
+            sprintf('Threshold peak: %s', num2str(evINFO(seltrace(iTr)).peakthreshold,3)),...
+            sprintf('Threshold type: %s', evINFO(seltrace(iTr)).thresholdtype),...
+            sprintf('Av. Inter-event-interval: %s s', num2str(evINFO(seltrace(iTr)).aviei,3)), ...
+            sprintf('CV IEI: %s', num2str(evINFO(seltrace(iTr)).cviei,3)),...
+            sprintf('Av. Amp. (dFoF): %s (%s)', num2str(evINFO(seltrace(iTr)).avamp,3), num2str(evINFO(seltrace(iTr)).avamp_dFoF,3)),...
+            sprintf('Av. Eventrate: %s Hz', num2str(evINFO(seltrace(iTr)).eventrate,3))};
         hold off;
         
         sp2 =  subplot('Position', sppos2(iSP,:),'Parent', gcf); axis off;

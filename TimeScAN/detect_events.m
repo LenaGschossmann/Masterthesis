@@ -1,4 +1,4 @@
-function [events, tmptrace] = detect_events(worktraces, seltrace)
+function [events, tmpdftrace] = detect_events(worktraces, seltrace)
 % Obtain event-related parameters of spike-train data
 % Input:
 % alldata: Vector of data representing neural activity
@@ -9,46 +9,46 @@ function [events, tmptrace] = detect_events(worktraces, seltrace)
 % sd: SD of input trace (if not yet calculated, leave empty ([]))
 % Output:
 % events: (struct) Information regarding extracted parameters
-% tmptrace: Vector of tmptrace data
+% tmpdftrace: Vector of tmpdftrace data
 
 %% Declare globally shared variables
-global PLOTPEAKS RISETIME THRESHOLDTYPE THRESHOLD PEAKTHRESHOLD SMTHWIN FTIME...
-    TRACEID TRACEDATA ROILIST RANGE TOTP ISBGSUB WHREVFIG evINFO BASEPOINTS PREFRAMES POSTFRAMES
+global PLOTPEAKS THRESHOLDTYPE THRESHOLD PEAKTHRESHOLD SMTHWIN FTIME...
+    RANGE TOTP evINFO BASEPOINTS PREPOINTS POSTPOINTS
 
-%% Prepare revision display
-
-
-%% Prepare variables
+%% Initialize variables
 if strcmp(THRESHOLDTYPE, 'dF'), mode = 1; else, mode = 0; end
-ptspre = ceil(0.5/FTIME); ptspost = ceil(1.5/FTIME);
-
+ptspre = PREPOINTS; ptspost = POSTPOINTS;
 if ptspre+ptspost+1 > diff(RANGE), RANGE = 1:TOTP; msgbox('The range was too small and set back!'); end
 
+peakwindow = 5; % Frames after threshold crossing in which peak is detected
 dftraces = diff(worktraces,1,1);
 avtraces = mean(worktraces,1);
 sdtraces = std(worktraces,1);
-evcutouts = cell(1,numel(seltrace));
 
 for iTr = 1:size(worktraces,2)
-    tmptrace = dftraces(:,iTr);
+    tmpdftrace = dftraces(:,iTr);
+    tmptrace = worktraces(:,iTr);
     if mode %% Detect events based on delta F
-        crossing = tmptrace > THRESHOLD;
+        crossing = tmpdftrace > THRESHOLD;
         crossidx = find(crossing == 1);
+        ii = 1;
+        while ii <= numel(crossidx)-1
+            if crossidx(ii+1)-crossidx(ii) < 5
+                crossing(crossidx(ii)) = 0;
+                crossidx(ii+1) = [];
+            else
+                ii = ii+1;
+            end
+        end
         trcthreshold = THRESHOLD;
         trcpkthreshold = NaN;
+        crossing(end+1) = 0;
         
     else %% Detect events based on sd
         % Define threshold for detection of event start and peak
         trcthreshold = avtraces(iTr)+THRESHOLD*sdtraces(iTr);
         trcpkthreshold = avtraces(iTr)+ PEAKTHRESHOLD*sdtraces(iTr);
         
-        % Exclusion criterion 1 - SD value: if sd value too low, presumably smoothing was too
-        % strong and likelihood of false positives increases a lot
-        % if sd/av < 0.05
-        %     aboveT = false(size(tmptrace));
-        %     crossing = aboveT; peaks = aboveT;
-        %     crossidx = NaN; peakidx = NaN; amps = NaN; ieis = NaN; eventrate = NaN; cviei = NaN; evkey = 'NaN';
-        % else
         aboveT = tmptrace >= trcthreshold;                                  % Binarized vector indicating all points above threshold
         crossing = false(size(aboveT));                                     % Binarized vector indicating points of threshold crossing
         % Determining points of threshold crossing (only if 2 consecutive points above threshold)
@@ -63,59 +63,57 @@ for iTr = 1:size(worktraces,2)
     %% Determine peak after threshold crossing
     if numel(crossidx) > 0
         numev = numel(crossidx);
+        peaks = false(size(tmptrace));                                      % Binarized vector indicating peaks
+        peakidx = zeros(size(crossidx));                                    % Vector containing the indices of peak points
+        amps = zeros(size(crossidx));
+        dFoF_amps = zeros(size(crossidx));
+        baselinevals = zeros(size(crossidx));
+        risetime = zeros(size(crossidx));
+        decaytime = zeros(size(crossidx));
         for iEv = 1:numev
-            evcutouts{iEv, iTr} = tmptrace(crossidx(iEv)-ptspre:crossidx(iEv)-ptspost);
-            peaks = false(size(tmptrace));                                          % Binarized vector indicating peaks
-            peakidx = zeros(size(crossidx));                                        % Vector containing the indices of peak points
-            amps = zeros(size(crossidx));                                           % Vector containing the event amplitudes (peak - average)
-            delidx = [];
-            riseThresh = ceil(RISETIME/FTIME);
-            for iCross = 1:numel(crossidx)
-                iPos = crossidx(iCross);
-                %             test = false(size(tmptrace));
-                %             while iPos <= numel(tmptrace) && aboveT(iPos) == 1
-                %                 test(iPos) = true;
-                %                 iPos = iPos+1;
-                %             end
-                add = 5;
-                if crossidx(iCross)+add > numel(tmptrace), add= numel(tmptrace)-crossidx(iCross); end
-                [valP,idxP] = max(tmptrace(crossidx(iCross):crossidx(iCross)+add));
-                peakidx(iCross) = crossidx(iCross)+idxP-1;
+            if crossidx(iEv)+peakwindow > numel(tmptrace), peakwindow= numel(tmptrace)-crossidx(iEv); end
+            [valP,idxP] = max(tmptrace(crossidx(iEv):crossidx(iEv)+peakwindow));
+            if strcmp(THRESHOLDTYPE,'dF') || (strcmp(THRESHOLDTYPE,'sd') && valP >= avtraces(iTr)+PEAKTHRESHOLD*sdtraces(iTr))
+                peakidx(iEv) = crossidx(iEv)+idxP-1;
+                peaks(peakidx(iEv)) = true;
                 
-                % Calculate delta F based on ROI average
-                amps(iCross) = valP - mean(tmptrace(crossidx(iCross)-BASEPOINTS:crossidx(iCross)));
+                % Calculate baseline value
+                if crossidx(iEv)-BASEPOINTS < 1, startval = 1; else, startval = crossidx(iEv)-BASEPOINTS; end
+                baselinevals(iEv) = mean(tmptrace(startval:crossidx(iEv)));
                 
-                %             % Exclusion criterion 2 - amplitude: If peak is too small, discard
-                %             % event
-                %             if strcmp(THRESHOLDTYPE, 'sd')
-                %                 if valP <= trcpkthreshold || (peakidx(iCross)-crossidx(iCross)) > riseThresh
-                %                     delidx = [delidx iCross];
-                %                 end
-                %             end
+                amps(iEv) =  valP-baselinevals(iEv);
+                dFoF_amps(iEv) = amps(iEv)/baselinevals(iEv);
             end
-            crossing(crossidx(delidx)) = false;
-            crossidx(delidx) = []; peakidx(delidx) = []; amps(delidx) = [];
-            peaks(peakidx) = true;
+            risetime(iEv) = (peakidx(iEv)-crossidx(iEv))*FTIME;
+            % Decay
+            iP = peakidx(iEv);
+            while decaytime(iEv) == 0 && iP <= size(tmptrace,iTr)
+                if tmptrace(iP) <= baselinevals(iEv), decaytime(iEv) = (iP-peakidx(iEv))*FTIME; end
+                iP = iP+1;
+            end
         end
         
         %% Calculate event-related parameters
-        if PLOTPEAKS, ieis = diff(peakidx).*FTIME; evkey = 'peak';
-        else, ieis = diff(crossidx).*FTIME; evkey = 'crossing';
+        if PLOTPEAKS, ieis = diff(peakidx).*FTIME;
+        else, ieis = diff(crossidx).*FTIME;
         end
         cviei = std(ieis)/mean(ieis);
-        %     eventrate = numel(crossidx)/(numel(tmptrace)*FTIME); % Eventrate calculated from number of events [Hz]
+        %     eventrate = numel(crossidx)/(numel(tmpdftrace)*FTIME); % Eventrate calculated from number of events [Hz]
         eventrate = 1/median(ieis); % Eventrate calculated from intereventintervals [Hz]
-        % end
+        
     else
         crossidx = NaN;
         peaks = zeros(size(crossing));
         peakidx = NaN;
         amps = NaN;
+        dFoF_amps = NaN;
         ieis = NaN;
         cviei = NaN;
         eventrate = NaN;
+        baselinevals = NaN;
+        risetime = NaN;
+        decaytime = NaN;
     end
-    
     
     % Save information in struct
     x = seltrace(iTr);
@@ -123,11 +121,11 @@ for iTr = 1:size(worktraces,2)
     evINFO(x).rangeout = RANGE(2);
     evINFO(x).ftime = FTIME;
     evINFO(x).smthwin = SMTHWIN;
-    evINFO(x).basepoints = BASEPOINTS;
-    evINFO(x).preframes = PREFRAMES;
-    evINFO(x).postframes = POSTFRAMES;
+    evINFO(x).baseframes = BASEPOINTS;
+    evINFO(x).baselinevalues = baselinevals;
     evINFO(x).average = avtraces(iTr);
     evINFO(x).sd = sdtraces(iTr);
+    evINFO(x).thresholdtype = THRESHOLDTYPE; 
     evINFO(x).threshold = trcthreshold;
     evINFO(x).peakthreshold = trcpkthreshold;
     evINFO(x).binarycross = crossing;
@@ -135,12 +133,15 @@ for iTr = 1:size(worktraces,2)
     evINFO(x).crossidx = crossidx;
     evINFO(x).peakidx = peakidx;
     evINFO(x).amps = amps;
+    evINFO(x).amps_dFoF = dFoF_amps;
     evINFO(x).avamp = mean(amps);
-    evINFO(x).eventtype = THRESHOLDTYPE;
+    evINFO(x).avamp_dFoF = mean(dFoF_amps);
     evINFO(x).ieis = ieis;
     evINFO(x).aviei = mean(ieis);
     evINFO(x).cviei = cviei;
     evINFO(x).eventratetype = 'IEI based';
     evINFO(x).eventrate = eventrate;
+    evINFO(x).risetimes = risetime;
+    evINFO(x).decaytimes = decaytime;
 end
 end

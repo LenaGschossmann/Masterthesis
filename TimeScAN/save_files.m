@@ -1,163 +1,111 @@
-function save_files(sp, fi, mode)
+function save_files(traceindices)
 
-% Declare globally shared variables
-global POSITIONFIG FONTSIZE CLIMRAW THRESHOLD PEAKTHRESHOLD SMTHWIN...
-    figINFO roiINFO traceINFO IMHW FTIME COMPOSITE2D
+global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH
 
-diapos = [POSITIONFIG(1)+POSITIONFIG(3)/2 POSITIONFIG(2)+POSITIONFIG(4)/2 200 100];
-diafig = figure('Position',diapos,'Name', 'Saving','toolbar', 'none', 'menu', 'none');
-set(gca, 'Color', 'none'); axis off;
-diatxtinfo = {'Files are saved', 'this may take a while...'};
-diatxt = uicontrol('parent', diafig, 'style', 'text', 'position', [10 5 180 80], 'string', diatxtinfo, 'FONTSIZE', FONTSIZE+1);
-pause(0.5);
+numtr = numel(traceindices);
 
-% Get parameters
-pr = figINFO(fi).plotrange;
-wsz = figINFO(fi).avwinsize;
+[~,n,~] = fileparts(FULLFILENAMES);
+pn = fullfile(SAVEPATH,n);
 
-if ~figINFO(fi).saved
-    answer = questdlg('Do you want to save the 2D matrix as .tif ?', 'Saving', 'Yes','No','Yes');
-    if strcmp(answer, 'Yes')
-        % Save ROI-unrelated stuff
-        averaged = average_linescan(COMPOSITE2D, wsz);
-        dFoF = deltaFovF_linescan(averaged);
-%         % .csv
-%         set(diatxt,'string',[diatxtinfo,{'','...create .csv files.'}]);
-%         pause(0.2);
-%         writematrix(COMPOSITE2D, strcat(sp,'raw.csv'));
-%         writematrix(averaged, strcat(sp,'AV_bin_',num2str(wsz), '.csv'));
-%         writematrix(dFoF, strcat(sp,'dFoF_bin_',num2str(wsz), '.csv'));
-        % .tifs
-        set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
-        pause(0.2);
-        vals = uint8(COMPOSITE2D(pr(1):pr(2),:));
-        imwrite(vals, strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        vals = uint8(averaged(pr(1):pr(2),:));
-        imwrite(vals, strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        vals = dFoF(pr(1):pr(2),:);
-        tic
-        writematrix(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.csv'));
-        toc
-%         fid = fopen(strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.txt'), 'w');
-%         fwrite(fid, vals, 'double');
-%         fclose(fid);
-%         imwrite(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        figINFO(fi).saved = true;
-    end
-else
-    answer = 'No';
-end
-
-% Determine ROIs to save
-if strcmp(mode, 'all')
-    saverois = 1:size(roiINFO,2);
-    if isempty(roiINFO(end).position), saverois = saverois(1:end-1); end
-else
-    saveroisidx = [traceINFO([traceINFO(:).save] == 1).roiID];
-    saverois = [];
-    for iE = 1:numel(saveroisidx), saverois = [saverois find([roiINFO(:).ID] == saveroisidx(iE))]; end
-end
-
-% Check if data already exist
-traceidx = zeros(size(saverois));
-trcexists = false(size(saverois));
-isline = false(size(saverois));
-
-for iRoi = 1:numel(saverois)
-    figid = figINFO(fi).IDs;
-    existidx1 = [traceINFO(:).figID] == figid;
-    existidx2 = [traceINFO(:).roiID] == roiINFO(saverois(iRoi)).ID;
-    if any(existidx1 & existidx2)
-        existidx = find(existidx1 & existidx2);
-        iEx = 1;
-        while iEx <= numel(existidx)
-            if all(traceINFO(existidx(iEx)).fig_params{1,1} == pr) &&...
-                    traceINFO(existidx(iEx)).fig_params{2,1} == wsz &&...
-                    traceINFO(existidx(iEx)).fig_params{3,1} == SMTHWIN &&...
-                    traceINFO(existidx(iEx)).fig_params{4,1} == THRESHOLD &&...
-                    traceINFO(existidx(iEx)).fig_params{5,1} == PEAKTHRESHOLD % check plotrange & binning
-                trcexists(iRoi) = true;
-                traceidx(iRoi) = existidx(iEx);
-                break;
-            end
-            iEx = iEx+1;
-        end
-    end
-    if roiINFO(iRoi).mode == 1, isline(iRoi) = true; end
-end
-
-if any(~trcexists)
-    averaged = average_linescan(COMPOSITE2D, wsz);
-end
-
-for iRoi = 1:numel(saverois)
-    roiid = roiINFO(saverois(iRoi)).ID;
-    set(diatxt,'string',[diatxtinfo,{'','...save ROI # ', num2str(roiid)}]);
-    pause(0.2);
-    if ~trcexists(iRoi)
-        if isline(iRoi), tmppr = [1 IMHW(1)]; else, tmppr = pr; end
-        val = uint8(averaged(tmppr(1):tmppr(2),:));
-        scmarkedroi = mark_rois(val,tmppr, saverois(iRoi));
-        [avvals,dFoFvals,yrange,allvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, tmppr);
-        [evinfo, smoothed] = get_trc_params(allvals,[tmppr(1)+yrange(1)-1 tmppr(1)+yrange(2)-1], [],[]);
-        crossings = evinfo.crossings;
-        supraT = evinfo.suprathreshold;
-        peaks = evinfo.peaks;
-        timestamp = ((tmppr(1)+yrange(1)-1)*FTIME:FTIME:(tmppr(1)+yrange(2)-1)*FTIME)';
-    else
-        if isline(iRoi)
-            avvals = traceINFO(traceidx(iRoi)).tot_binned_roi_av{1};
-            dFoFvals = traceINFO(traceidx(iRoi)).tot_dFoF_roi_av{1};
-            smoothed = traceINFO(traceidx(iRoi)).tot_smoothed{1};
-            crossings = traceINFO(traceidx(iRoi)).tot_events.crossings;
-            supraT = traceINFO(traceidx(iRoi)).tot_events.suprathreshold;
-            peaks = traceINFO(traceidx(iRoi)).tot_events.peaks;
-            timestamp = traceINFO(traceidx(iRoi)).tot_timestamp{1};
-            evinfo =  traceINFO(traceidx(iRoi)).tot_events;
-        else
-            avvals =  traceINFO(traceidx(iRoi)).binned_roi_av{1};
-            dFoFvals = traceINFO(traceidx(iRoi)).dFoF_roi_av{1};
-            smoothed = traceINFO(traceidx(iRoi)).smoothed{1};
-            crossings = traceINFO(traceidx(iRoi)).events.crossings;
-            supraT = traceINFO(traceidx(iRoi)).events.suprathreshold;
-            peaks = traceINFO(traceidx(iRoi)).events.peaks;
-            timestamp = traceINFO(traceidx(iRoi)).timestamp{1};
-            evinfo =  traceINFO(traceidx(iRoi)).events;
-        end
-        scmarkedroi = traceINFO(traceidx(iRoi)).plotmarked{1};
-    end
-    writeMtrx = [timestamp avvals smoothed dFoFvals supraT crossings peaks];
-    writeMtrx = array2table(writeMtrx, 'VariableNames', {'frametime_s', 'ROI_average', 'ROI_smth_average','ROI_dFoF', 'threshold_binary','crossing_binary', 'peak_binary'});
-    imwrite(scmarkedroi, strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
-    writetable(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(SMTHWIN), '_thresh_', num2str(THRESHOLD),'_threshpk_', num2str(PEAKTHRESHOLD),'.csv'));
+if numtr == 1
+    names = {'_binary_traces', '_event_info'};
+    trname = strcat('_',ROILIST{traceindices});
+    names = strcat(repelem({pn},numel(names)), repelem({trname}, numel(names)), names, repelem({FFORMAT},numel(names)));
     
-    % Save event info as table
-    evTable = table();
-    if isempty(evinfo.crossidx)
-        evTable.crossing_idx = NaN;
-        evTable.peaks_idx = NaN;
-        evTable.peak_amps = NaN;
-        evTable.ieis = NaN;
-    else
-        evTable.crossing_idx = evinfo.crossidx;
-        evTable.peaks_idx = evinfo.peakidx;
-        evTable.peak_amps = evinfo.amps;
-        evTable.ieis = [evinfo.ieis; NaN];
+    % Binary traces
+    tbl = table();
+    tbl.timepoints = FTIMEVEC;
+    tbl.crossing = uint8(evINFO(traceindices).binarycross);
+    tbl.peaks = uint8(evINFO(traceindices).binarypeaks);
+    writetable(tbl, names{1});
+    
+    % Event info
+    tbl = table();
+    tbl.crossing_idx = evINFO(traceindices).crossidx;
+    tbl.peaks_idx = evINFO(traceindices).peakidx;
+    tbl.amplitude = evINFO(traceindices).amps;
+    tbl.amplitude_dFoF = evINFO(traceindices).amps_dFoF;
+    tbl.risetime = evINFO(traceindices).risetimes;
+    tbl.decaytime = evINFO(traceindices).decaytimes;
+    tbl.iei = [evINFO(traceindices).ieis; NaN];
+    tbl.baseline_values = evINFO(traceindices).baselinevalues;
+    writetable(tbl, names{2});
+    
+else
+    names = {'_crossings_binary',...
+        '_peaks_binary',...
+        'crossing_idx',...
+        'peaks_idx',...
+        '_amplitude',...
+        '_amplitude_dFoF',...
+        '_risetimes',...
+        '_decaytimes',...
+        '_iei',...
+        '_baseline'};
+    names = strcat(repelem({pn},numel(names)), names, repelem({FFORMAT},numel(names)));
+    
+    tbl_cross_binary = struct();
+    tbl_peaks_binary = struct();
+    tbl_crossidx = struct();
+    tbl_peakidx = struct();
+    tbl_amps = struct();
+    tbl_amps_dFoF = struct();
+    tbl_rise = struct();
+    tbl_decay = struct();
+    tbl_ieis = struct();
+    tbl_baselines = struct();
+    maxelem = 0;
+    for iTr = 1:numtr, maxelem = max([maxelem numel(evINFO(traceindices(iTr)).crossidx)]); end
+    
+    for iTr = 1:numtr
+        tmpidx = traceindices(iTr);
+        tmpelem = numel(evINFO(traceindices(iTr)).crossidx);
+        
+        % Binary crossings
+        tbl_cross_binary.timepoints = FTIMEVEC;
+        tbl_peaks_binary.timepoints = FTIMEVEC;
+        tbl_cross_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarycross);
+        tbl_peaks_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarypeaks);
+        
+        % Event info
+        if tmpelem < maxelem
+            fill = maxelem-tmpelem;
+            tbl_crossidx.(ROILIST{tmpidx}) = [evINFO(tmpidx).crossidx; (repelem(0,fill))'];
+            tbl_peakidx.(ROILIST{tmpidx}) = [evINFO(tmpidx).peakidx; (repelem(0,fill))'];
+            tbl_amps.(ROILIST{tmpidx}) = [evINFO(tmpidx).amps; (repelem(0,fill))'];
+            tbl_amps_dFoF.(ROILIST{tmpidx}) = [evINFO(tmpidx).amps_dFoF; (repelem(0,fill))'];
+            tbl_rise.(ROILIST{tmpidx}) = [evINFO(tmpidx).risetimes; (repelem(0,fill))'];
+            tbl_decay.(ROILIST{tmpidx}) = [evINFO(tmpidx).decaytimes; (repelem(0,fill))'];
+            tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis; (repelem(0,fill+1))'];
+            tbl_baselines.(ROILIST{tmpidx}) = [evINFO(tmpidx).baselinevalues; (repelem(0,fill))'];
+       else       
+            tbl_crossidx.(ROILIST{tmpidx}) = evINFO(tmpidx).crossidx;
+            tbl_peakidx.(ROILIST{tmpidx}) = evINFO(tmpidx).peakidx;
+            tbl_amps.(ROILIST{tmpidx}) = evINFO(tmpidx).amps;
+            tbl_amps_dFoF.(ROILIST{tmpidx}) = evINFO(tmpidx).amps_dFoF;
+            tbl_rise.(ROILIST{tmpidx}) = evINFO(tmpidx).risetimes;
+            tbl_decay.(ROILIST{tmpidx}) = evINFO(tmpidx).decaytimes;
+            tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis;NaN];
+            tbl_baselines.(ROILIST{tmpidx}) = evINFO(tmpidx).baselinevalues;
+        end
     end
-    lt = size(evinfo.crossidx,1);
-    if lt > 1, filler = repelem({''},lt-1)'; else, filler = []; end
-    evTable.roi_start_x = [roiINFO(saverois(iRoi)).position(1); filler];
-    evTable.roi_end_x = [roiINFO(saverois(iRoi)).position(1)+roiINFO(saverois(iRoi)).position(3); filler];
-    evTable.roi_start_y = [roiINFO(saverois(iRoi)).position(2); filler];
-    evTable.roi_end_y = [roiINFO(saverois(iRoi)).position(2)+roiINFO(saverois(iRoi)).position(4); filler];
-    evTable.threshold = [evinfo.threshold; filler];
-    evTable.event_type = [evinfo.eventtype; filler];
-    evTable.av_eventrate_Hz = [evinfo.eventrate; filler];
-    evTable.av_intereventinterval_s = [evinfo.aviei; filler];
-    evTable.av_peak_amp = [evinfo.avamp;filler];
-    evTable.cv_iei = [evinfo.cviei; filler];
-    writetable(evTable, strcat(sp,'ROI_',num2str(roiid),'_eventinfo_binning_', num2str(wsz), '_smth_', num2str(SMTHWIN), '_thresh_', num2str(THRESHOLD),'_threshpk_', num2str(PEAKTHRESHOLD),'.csv'));
+    
+    disp('Writing files...');
+    writetable(struct2table(tbl_cross_binary), names{1});
+    writetable(struct2table(tbl_peaks_binary), names{2});
+    writetable(struct2table(tbl_crossidx), names{3});
+    writetable(struct2table(tbl_peakidx), names{4});
+    writetable(struct2table(tbl_amps), names{5});
+    writetable(struct2table(tbl_amps_dFoF), names{6});
+    writetable(struct2table(tbl_rise), names{7});
+    writetable(struct2table(tbl_decay), names{8});
+    writetable(struct2table(tbl_ieis), names{9});
+    writetable(struct2table(tbl_baselines), names{10});
+    
+    % Save struct()
+    strname = strcat(pn,'_event_struct.m');
+    save(strname, 'evINFO', '-v7.3');
+    disp('Writing finished!');
 end
-close(diafig);
-okbox = msgbox('Files saved', '', 'modal');
+
 end

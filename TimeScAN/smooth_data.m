@@ -7,10 +7,7 @@ function [smoothed] = smooth_data(data, win)
 % Output:
 % smoothed: 1D vector of smoothed data
 
-% Declare globally shared variables
-global FTIME
-
-hw = round(0.5*win/FTIME);
+hw = round(0.5*win);
 iPos = hw+1;
 smoothed = data;
 
