@@ -1,6 +1,6 @@
 function save_files(traceindices)
 
-global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH
+global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH FTIMEVEC
 
 numtr = numel(traceindices);
 
@@ -14,7 +14,7 @@ if numtr == 1
     
     % Binary traces
     tbl = table();
-    tbl.timepoints = FTIMEVEC;
+    tbl.timepoints = FTIMEVEC';
     tbl.crossing = uint8(evINFO(traceindices).binarycross);
     tbl.peaks = uint8(evINFO(traceindices).binarypeaks);
     writetable(tbl, names{1});
@@ -55,6 +55,7 @@ else
     tbl_ieis = struct();
     tbl_baselines = struct();
     maxelem = 0;
+    
     for iTr = 1:numtr, maxelem = max([maxelem numel(evINFO(traceindices(iTr)).crossidx)]); end
     
     for iTr = 1:numtr
@@ -62,10 +63,15 @@ else
         tmpelem = numel(evINFO(traceindices(iTr)).crossidx);
         
         % Binary crossings
-        tbl_cross_binary.timepoints = FTIMEVEC;
-        tbl_peaks_binary.timepoints = FTIMEVEC;
-        tbl_cross_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarycross);
-        tbl_peaks_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarypeaks);
+        tbl_cross_binary.timepoints = FTIMEVEC';
+        tbl_peaks_binary.timepoints = FTIMEVEC';
+        if isempty(evINFO(tmpidx).binarycross)
+            tbl_cross_binary.(ROILIST{tmpidx}) = zeros(size(tbl_cross_binary.timepoints));
+            tbl_peaks_binary.(ROILIST{tmpidx}) = zeros(size(tbl_cross_binary.timepoints));
+        else
+            tbl_cross_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarycross);
+            tbl_peaks_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarypeaks);
+        end
         
         % Event info
         if tmpelem < maxelem

@@ -46,4 +46,4 @@ traceINFO = struct('figID',[], 'fig_params',[],'roiID',[], 'binned_roi_av',[],'d
 SAVEPARENT = [];
 
 close all;
-ini_ctrl_box();
+ini_ctrl_box_linescan();

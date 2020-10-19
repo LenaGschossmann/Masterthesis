@@ -1,4 +1,4 @@
-function ini_ctrl_box()
+function ini_ctrl_box_linescan()
 
 % Declare globally shared variables
 global SCRSZ FNAME FONTSIZE SCMAPDDITEMS SCMAP WINSZDDITEMS WINSZ...
