@@ -94,9 +94,7 @@ else
             tbl_amps_dFoF.(ROILIST{tmpidx}) = [evINFO(tmpidx).amps_dFoF; (repelem(0,fill))'];
             tbl_rise.(ROILIST{tmpidx}) = [evINFO(tmpidx).risetimes; (repelem(0,fill))'];
             tbl_decay.(ROILIST{tmpidx}) = [evINFO(tmpidx).decaytimes; (repelem(0,fill))'];
-            if all(isnan(evINFO(tmpidx).ieis)), tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis; (repelem(0,fill-1))'];
-            else, tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis; (repelem(0,fill))'];
-            end
+            tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis; (repelem(0,maxelem-1-numel(evINFO(tmpidx).ieis)))'];
             tbl_baselines.(ROILIST{tmpidx}) = [evINFO(tmpidx).baselinevalues; (repelem(0,fill))'];
        else       
             tbl_crossidx.(ROILIST{tmpidx}) = evINFO(tmpidx).crossidx;
@@ -128,6 +126,8 @@ else
     strname = strcat(pn,'_event_struct.m');
     save(strname, 'evINFO', '-v7.3');
     disp('Writing finished!');
+    close all;
+    clear all;
 end
 
     function [tmpcroptrace] = crop_trace(tmpidx)
