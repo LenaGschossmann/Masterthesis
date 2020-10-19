@@ -1,13 +1,11 @@
 function save_files(traceindices)
 
-global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH FTIMEVEC PREPOINTS POSTPOINTS TOTP TRACEDATA SMTHWIN
+global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH FTIMEVEC PREPOINTS POSTPOINTS TOTP
 
 numtr = numel(traceindices);
 
 [~,n,~] = fileparts(FULLFILENAMES);
 pn = fullfile(SAVEPATH,n);
-
-croppedtraces = [];
 
 if numtr == 1
     names = {'_binary_traces', '_event_info', '_cropped_traces'};
@@ -34,8 +32,7 @@ if numtr == 1
     writetable(tbl, names{2});
     
     % Cropped traces
-    croppedtraces = crop_trace(traceindices);
-    writematrix(croppedtraces, names{3});
+    writematrix(evINFO(traceindices).croppedtraces, names{3});
     
     
 else
@@ -62,13 +59,14 @@ else
     tbl_decay = struct();
     tbl_ieis = struct();
     tbl_baselines = struct();
+    mtrx_croppedtr = NaN;
     maxelem = 0;
     
     for iTr = 1:numtr, maxelem = max([maxelem numel(evINFO(traceindices(iTr)).crossidx)]); end
     
     for iTr = 1:numtr
         tmpidx = traceindices(iTr);
-        tmpelem = numel(evINFO(tmpidx).crossidx);
+        tmpelem = numel(evINFO(traceindices(iTr)).crossidx);
         
         % Binary crossings
         tbl_cross_binary.timepoints = FTIMEVEC';
@@ -79,10 +77,8 @@ else
         else
             tbl_cross_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarycross);
             tbl_peaks_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarypeaks);
-            % Crop traces
-            if isempty(croppedtraces), croppedtraces = crop_trace(tmpidx);
-            else, croppedtraces = [croppedtraces; crop_trace(tmpidx)];
-            end
+            % Cropped traces
+            mtrx_croppedtr = [mtrx_croppedtr; evINFO(tmpidx).croppedtraces];
         end
         
         % Event info
@@ -109,6 +105,8 @@ else
             tbl_baselines.(ROILIST{tmpidx}) = evINFO(tmpidx).baselinevalues;
         end
       
+        
+        
     end
 
     disp('Writing files...');
@@ -122,7 +120,7 @@ else
     writetable(struct2table(tbl_decay), names{8});
     writetable(struct2table(tbl_ieis), names{9});
     writetable(struct2table(tbl_baselines), names{10});
-    writematrix(croppedtraces, names{11});
+    writematrix(mtrx_croppedtr, names{11});
     
     % Save struct()
     strname = strcat(pn,'_event_struct.m');
@@ -130,13 +128,11 @@ else
     disp('Writing finished!');
 end
 
-    function [tmpcroptrace] = crop_trace(tmpidx)
+    function crop_trace()
         %% Cropped traces
-        tmpelem = numel(evINFO(tmpidx).crossidx);
+        tmpidx = traceindices(iTr);
+        tmpelem = numel(evINFO(traceindices(iTr)).crossidx);
         tmpcroptrace = NaN(tmpelem,PREPOINTS+POSTPOINTS+1);
-        worktrace = TRACEDATA(:,tmpidx);
-        if SMTHWIN ~= 0, worktrace = smooth_data(worktrace,SMTHWIN); end
-        
         for iE = 1:tmpelem
             crossidx = evINFO(tmpidx).crossidx(iE);
             baseline = evINFO(tmpidx).baselinevalues(iE);

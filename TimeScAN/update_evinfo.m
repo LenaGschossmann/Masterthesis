@@ -32,4 +32,6 @@ evINFO(traceidx).avamp = mean(evINFO(traceidx).amps);
 evINFO(traceidx).avamp_dFoF = mean(evINFO(traceidx).amps_dFoF);
 evINFO(traceidx).aviei = mean(evINFO(traceidx).ieis);
 evINFO(traceidx).accepted = 'accepted';
+
+
 end
