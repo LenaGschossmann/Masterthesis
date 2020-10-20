@@ -126,8 +126,11 @@ else
     strname = strcat(pn,'_event_struct.m');
     save(strname, 'evINFO', '-v7.3');
     disp('Writing finished!');
-    close all;
-    clear all;
+    
+    if numtr == numel(ROILIST)
+        close all;
+        clear all;
+    end
 end
 
     function [tmpcroptrace] = crop_trace(tmpidx)
