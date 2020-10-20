@@ -35,6 +35,7 @@ crossidx = evINFO(traceidx).crossidx;
 baseline = evINFO(traceidx).baselinevalues;
 croptrace = NaN(numev,PREPOINTS+POSTPOINTS+1);
 xpoints = (0:PREPOINTS+POSTPOINTS).*FTIME.*1000; % in [ms]
+goOn = [];
 
 %% Extrace cropped out region around events
 for iE = 1:numev
@@ -66,6 +67,10 @@ plot_traces();
 
 %% Apply revision
 uiwait();
+if isempty(goOn)
+    goOn = true;
+    keepev(:) = true;
+end
 
 %% Local Callbacks
     function cb_acceptbut(~,~)

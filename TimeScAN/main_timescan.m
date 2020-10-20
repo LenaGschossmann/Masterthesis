@@ -52,3 +52,4 @@ SAVEPATH = '';
 
 close all;
 ini_ctrl_box_timescan();
+clear all;

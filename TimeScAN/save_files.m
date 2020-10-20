@@ -81,7 +81,7 @@ else
             tbl_peaks_binary.(ROILIST{tmpidx}) = uint8(evINFO(tmpidx).binarypeaks);
             % Crop traces
             if isempty(croppedtraces), croppedtraces = crop_trace(tmpidx);
-            else, croppedtraces = [croppedtraces; crop_trace(tmpidx)];
+            else, croppedtraces = [croppedtraces crop_trace(tmpidx)];
             end
         end
         
@@ -155,6 +155,7 @@ end
             % Delta F over F
             tmpcroptrace(iE,:) = (tmpcroptrace(iE,:)-baseline)./baseline;
         end
+        tmpcroptrace = tmpcroptrace'; % columns: Events, rows: Timepoints
     end
 
 end

@@ -244,16 +244,13 @@ uiwait;
         if ~isempty(hObj.String), PREPOINTS = str2double(hObj.String); end
         if strcmp(XTYPE, 's')
             PREPOINTS = round(PREPOINTS/FTIME);
-            cut1in.String = num2str(PREPOINTS*FTIME);
         end
+        
     end
 
     function cb_cut2in(hObj,~)
         if ~isempty(hObj.String), POSTPOINTS = str2double(hObj.String); end
-        if strcmp(XTYPE, 's')
-            POSTPOINTS = round(POSTPOINTS/FTIME);
-            cut2in.String = num2str(POSTPOINTS*FTIME);
-        end
+        if strcmp(XTYPE, 's'), POSTPOINTS = round(POSTPOINTS/FTIME); end
     end
 
     function cb_basepin(hObj,~)
