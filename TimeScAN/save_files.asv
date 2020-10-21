@@ -49,7 +49,7 @@ if numtr == 1
     % Cropped traces
     [croppedtraces, traceids] = crop_trace(traceindices);
     writematrix(croppedtraces, names{4}, 'Sheet', 'Traces');
-    writecell(traceids, names{4}, 'Sheet', 'Trace IDs');
+    writetable(tracesids, names{4}, 'Sheet', 'Trace IDs');
     
     
 else
@@ -62,12 +62,12 @@ else
         'risetimes',...
         'decaytimes',...
         'iei',...
-        'baseline'};
+        'baseline',...
+        '_cropped_traces'};
 
-    binaryname = strcat(pn, '_binary_events', '.xlsx');
+    binaryname = strcat(pn, 'binary_onset_peak', '.xlsx');
     eventinfoname = strcat(pn, '_event_info', '.xlsx');
     eventsummaryname = strcat(pn, '_event_sumary', '.xlsx');
-    croptrname = strcat(pn, '_cropped_traces', '.xlsx');
     
     tbl_onset_binary = struct();
     tbl_peaks_binary = struct();
@@ -90,7 +90,7 @@ else
         % Binary onsets
         tbl_onset_binary.timepoints = FTIMEVEC';
         tbl_peaks_binary.timepoints = FTIMEVEC';
-        if all(isnan(evINFO(tmpidx).binaryonset)) || isempty(evINFO(tmpidx).binaryonset)
+        if isnan(evINFO(tmpidx).binaryonset) || isempty(evINFO(tmpidx).binaryonset)
             tbl_onset_binary.(ROILIST{tmpidx}) = zeros(size(tbl_onset_binary.timepoints));
             tbl_peaks_binary.(ROILIST{tmpidx}) = zeros(size(tbl_onset_binary.timepoints));
         else
@@ -101,7 +101,7 @@ else
                 [croppedtraces, traceids] = crop_trace(tmpidx);
             else
                 [tmptrace, tmpids] = crop_trace(tmpidx);
-                croppedtraces = [croppedtraces tmptrace]; traceids = [traceids, tmpids];
+                croppedtraces = [croppedtraces tmptrace]; traceids = [trace
             end
         end
         
@@ -151,8 +151,8 @@ else
     writetable(struct2table(tbl_decay), eventinfoname, 'Sheet', names{8});
     writetable(struct2table(tbl_ieis), eventinfoname, 'Sheet', names{9});
     writetable(struct2table(tbl_baselines), eventinfoname, 'Sheet', names{10});
-    writematrix(croppedtraces, croptrname, 'Sheet', 'Traces');
-    writecell(traceids, croptrname, 'Sheet', 'Trace IDs'); % Info: Roi ID (row 1), Event ID (row 2), Onset index (row 3), Frametime (row 4)
+    writematrix(croppedtraces, names{11}, 'Sheet', 'Traces');
+    writetable(tracesids, names{11}, 'Sheet', 'Trace IDs');
     
     if numtr == numel(ROILIST)
         close all;
@@ -165,11 +165,10 @@ strname = strcat(pn,'_event_struct.m');
 save(strname, 'evINFO', '-v7.3');
 disp('Writing finished!');
 
-    function [tmpcroptrace, tmptraceids] = crop_trace(tmpidx)
+    function [tmpcroptrace] = crop_trace(tmpidx)
         %% Cropped traces
         tmpelem = numel(evINFO(tmpidx).onsetidx);
         tmpcroptrace = zeros(tmpelem,PREPOINTS+POSTPOINTS+1);
-        tmptraceids = cell(4,tmpelem);
         worktrace = TRACEDATA(:,tmpidx);
         if SMTHWIN ~= 0, worktrace = smooth_data(worktrace,SMTHWIN); end
         
@@ -190,11 +189,6 @@ disp('Writing finished!');
             end
             % Delta F over F
             tmpcroptrace(iE,:) = (tmpcroptrace(iE,:)-baseline)./baseline;
-            
-            tmptraceids{1,iE} = ROILIST{tmpidx};
-            tmptraceids{2,iE} = iE;
-            tmptraceids{3,iE} = evINFO(tmpidx).onsetidx(iE);
-            tmptraceids{4,iE} = evINFO(tmpidx).ftime(iE);
         end
         tmpcroptrace = tmpcroptrace'; % columns: Events, rows: Timepoints
     end

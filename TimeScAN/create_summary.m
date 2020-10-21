@@ -25,7 +25,7 @@ summaryfig = figure('Position',POSITIONTRCFIG, 'Name', 'Event summary');
 % dFoF traces
 traceidx = find(strcmp({evINFO(:).accepted},'accepted') == 1);
 numtr = numel(traceidx); numallev = 0;
-for iTr = 1:numtr, numallev = numallev + numel(evINFO(traceidx(iTr)).crossidx); end
+for iTr = 1:numtr, numallev = numallev + numel(evINFO(traceidx(iTr)).onsetidx); end
 worktraces = TRACEDATA(RANGE(1):RANGE(2), traceidx);
 if SMTHWIN ~= 0, for iTr = 1:numtr, worktraces(:,iTr) = smooth_data(worktraces(:,iTr),SMTHWIN); end, end
 croptrace = NaN(numallev,PREPOINTS+POSTPOINTS+1);
@@ -36,21 +36,21 @@ ii = 1;
 % Extrace cropped out region around events
 for iTr = 1:numtr
     % Initialize und unpack varaibles
-    numev = numel(evINFO(traceidx(iTr)).crossidx);
-    crossidx = evINFO(traceidx(iTr)).crossidx;
+    numev = numel(evINFO(traceidx(iTr)).onsetidx);
+    onsetidx = evINFO(traceidx(iTr)).onsetidx;
     baseline = evINFO(traceidx(iTr)).baselinevalues;
     for iE = 1:numev
         % Event preceding part
-        if crossidx(iE)-PREPOINTS < 1
-            croptrace(ii,PREPOINTS-crossidx(iE)+2:PREPOINTS+1) = worktraces(1:crossidx(iE), iTr)';
+        if onsetidx(iE)-PREPOINTS < 1
+            croptrace(ii,PREPOINTS-onsetidx(iE)+2:PREPOINTS+1) = worktraces(1:onsetidx(iE), iTr)';
         else
-            croptrace(ii,1:PREPOINTS+1) = worktraces(crossidx(iE)-PREPOINTS:crossidx(iE), iTr)';
+            croptrace(ii,1:PREPOINTS+1) = worktraces(onsetidx(iE)-PREPOINTS:onsetidx(iE), iTr)';
         end
         % Event following part
-        if crossidx(iE)+POSTPOINTS > size(worktraces,1)
-            croptrace(ii,PREPOINTS+2:PREPOINTS+1+size(worktraces,1)-crossidx(iE)) = worktraces(crossidx(iE)+1:end,iTr);
+        if onsetidx(iE)+POSTPOINTS > size(worktraces,1)
+            croptrace(ii,PREPOINTS+2:PREPOINTS+1+size(worktraces,1)-onsetidx(iE)) = worktraces(onsetidx(iE)+1:end,iTr);
         else
-            croptrace(ii,PREPOINTS+2:end) = worktraces(crossidx(iE)+1:crossidx(iE)+POSTPOINTS, iTr);
+            croptrace(ii,PREPOINTS+2:end) = worktraces(onsetidx(iE)+1:onsetidx(iE)+POSTPOINTS, iTr);
         end
         % Delta F over F
         croptrace(ii,:) = (croptrace(ii,:)-baseline(iE))./baseline(iE);

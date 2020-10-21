@@ -135,7 +135,8 @@ uiwait;
                 importdata = importdata(:,2:end);
                 importroi = importroi(2:end);
             end
-            [~,sortidx] = sort(importroi);
+            % Sort by number
+            sortidx = roi_sort(importroi);
             importroi = importroi(sortidx); importdata = importdata(:,sortidx);
             for iTr = 1:numel(importroi), importroi{iTr}= strtrim(strrep(importroi{iTr},'_','')); end
             TRACEDATA = importdata; ROILIST = importroi;
@@ -332,6 +333,21 @@ uiwait;
         else, saveidx = TRACEID;
         end
         save_files(saveidx);
+    end
+
+    function sortidx = roi_sort(namelist)
+        numlist = zeros(numel(namelist),1);
+        ii=1;
+        while ii <= numel(namelist)
+            strnumbers = regexp(namelist{ii},{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'});
+            idx = [];
+            for iN = 1:numel(strnumbers), if ~isempty(strnumbers{iN}), idx = [idx strnumbers{iN}]; end, end
+            if ~isempty(idx), numlist(ii) = str2num(namelist{ii}(idx)); else, numlist(ii) = NaN; end
+            ii= ii+1;
+        end
+        if ~all(isnan(numlist)), [~,sortidx] = sort(numlist,'ascend', 'MissingPlacement', 'first');
+        else, sortidx = 1:numel(namelist);
+        end
     end
 
 end

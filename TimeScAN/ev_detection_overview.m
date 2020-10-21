@@ -46,9 +46,9 @@ detectidx = find(strcmp({evINFO(seltrace).accepted}, 'pending'));
 detect_events(detecttr(:,detectidx), seltrace(detectidx));
 for iTr = 1:numtr
     if any(iTr == detectidx)
-        keepev{iTr,1} = false(numel(evINFO(iTr).crossidx),1);
+        keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
     else
-        keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).crossidx),1);
+        keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
         revised(iTr,1) = true;
     end
 end
@@ -117,7 +117,7 @@ revisebut = uicontrol('parent', evdetfig, 'style', 'pushbutton',  'units', 'norm
     'FONTSIZE', fs, 'callback', {@cb_revisebut});
 closebut = uicontrol('parent', evdetfig, 'style', 'pushbutton',  'units', 'normalized','position', closebutpos,'string', 'Close',...
     'FONTSIZE', fs, 'callback', {@cb_closebut});
-if isempty(evINFO(seltrace(currdisp)).crossidx)
+if isempty(evINFO(seltrace(currdisp)).onsetidx)
     acceptbut.Enable = 'off'; revisebut.Enable = 'off';
 elseif strcmp(evINFO(seltrace(currdisp)).accepted,'accepted')
     acceptbut.String = 'Re-run detection';
@@ -154,7 +154,7 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
         end
         plot_trace();
         statetxt.String = {'Event detection state:', evINFO(seltrace(currdisp)).accepted};
-        if isempty(evINFO(seltrace(currdisp)).crossidx)
+        if isempty(evINFO(seltrace(currdisp)).onsetidx)
             acceptbut.Enable = 'off'; revisebut.Enable = 'off';
             acceptbut.String = 'Accept events';
             info = {'no events detected'};
@@ -196,12 +196,13 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
         THRESHOLD = str2double(get(hObj,'String'));
         % Apply new threshold to detection
         detectidx = find(strcmp({evINFO(seltrace).accepted}, 'pending'));
+        
         detect_events(detecttr(:,detectidx), seltrace(detectidx));
         for iTr = 1:numtr
             if any(iTr == detectidx)
-                keepev{iTr,1} = false(numel(evINFO(iTr).crossidx),1);
+                keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
             else
-                keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).crossidx),1);
+                keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
                 revised(iTr,1) = true;
             end
         end
@@ -215,9 +216,9 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
         detect_events(detecttr(:,detectidx), seltrace(detectidx));
         for iTr = 1:numtr
             if any(iTr == detectidx)
-                keepev{iTr,1} = false(numel(evINFO(iTr).crossidx),1);
+                keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
             else
-                keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).crossidx),1);
+                keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
                 revised(iTr,1) = true;
             end
         end
@@ -228,7 +229,7 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
     function cb_acceptbut(hObj,~)
         if strncmp(hObj.String, 'Re',2)
             detect_events(detecttr(:,currdisp), seltrace(currdisp));
-            keepev{currdisp,1} = false(numel(evINFO(seltrace(currdisp)).crossidx),1);
+            keepev{currdisp,1} = false(numel(evINFO(seltrace(currdisp)).onsetidx),1);
             revised(currdisp,1) = false;
             plot_trace();
             acceptbut.String = 'Accept events';
@@ -236,7 +237,7 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
             evINFO(seltrace(currdisp)).accepted = 'pending';
         else
             if ~revised(currdisp,1)
-                keepev{currdisp,1} = true(numel(evINFO(seltrace(currdisp)).crossidx),1);
+                keepev{currdisp,1} = true(numel(evINFO(seltrace(currdisp)).onsetidx),1);
             end
             update_evinfo(seltrace(currdisp), keepev{currdisp,1});
             keepev{currdisp,1} = true(sum(keepev{currdisp,1}),1);
@@ -273,14 +274,14 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
         title(detectid{currdisp}); set(gca, 'FONTSIZE', FONTSIZE);
         xlabel(TRCXLABEL); ylabel(TRCYLABEL);
         xlim([timepts(1), timepts(end)]);
-        if ~revised(currdisp,1) && any(~isnan(evINFO(seltrace(currdisp)).crossidx))
+        if ~revised(currdisp,1) && any(~isnan(evINFO(seltrace(currdisp)).onsetidx))
             if PLOTPEAKS, evidx = timepts(evINFO(seltrace(currdisp)).peakidx);
-            else, evidx = timepts(evINFO(seltrace(currdisp)).crossidx);
+            else, evidx = timepts(evINFO(seltrace(currdisp)).onsetidx);
             end
             for iE = 1:numel(evidx), hold on; xl = xline(evidx(iE), 'Linewidth',LW2, 'Color', [0 0 0]); xl.Color(4) = XLINEALPHA; end
         elseif revised(currdisp,1) && sum(keepev{currdisp,1}) > 0
             if PLOTPEAKS, evidx = timepts(evINFO(seltrace(currdisp)).peakidx(keepev{currdisp,1}));
-            else, evidx = timepts(evINFO(seltrace(currdisp)).crossidx(keepev{currdisp,1}));
+            else, evidx = timepts(evINFO(seltrace(currdisp)).onsetidx(keepev{currdisp,1}));
             end
             for iE = 1:numel(evidx), hold on; xl = xline(evidx(iE), 'Linewidth',LW2, 'Color', [0 0 0]); xl.Color(4) = XLINEALPHA; end
         end
@@ -296,9 +297,9 @@ end
 %             if strcmp(childs(ii).Type, 'constantline'), delidx = [delidx ii]; end
 %         end
 %         delete(childs(delidx));
-%         if ~isnan(evINFO(seltrace(currdisp)).crossidx)
+%         if ~isnan(evINFO(seltrace(currdisp)).onsetidx)
 %             if PLOTPEAKS, evidx = FTIMEVEC(evINFO(seltrace(currdisp)).peakidx);
-%             else, evidx = FTIMEVEC(evINFO(seltrace(currdisp)).crossidx);
+%             else, evidx = FTIMEVEC(evINFO(seltrace(currdisp)).onsetidx);
 %             end
 %             for iE = 1:numel(evidx), hold on; xline(evidx(iE), 'Linewidth',LW2, 'Color', [0 0 0]); end
 %         end

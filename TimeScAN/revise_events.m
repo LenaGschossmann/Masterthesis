@@ -27,11 +27,11 @@ backbutpos = [rejectbutpos(1)+rejectbutpos(3)+hspace/2 acceptbutpos(2) whbut(1)*
 showrbpos = [acceptbutpos(1)-whrb(1)-hspace/3 acceptbutpos(2)+acceptbutpos(4)/2-whrb(2)/2 whrb];
 
 %% Initialize und unpack varaibles
-numev = numel(evINFO(traceidx).crossidx);
+numev = numel(evINFO(traceidx).onsetidx);
 currev = 1;
 showall = false;
 keepev = false(numev,1);
-crossidx = evINFO(traceidx).crossidx;
+onsetidx = evINFO(traceidx).onsetidx;
 baseline = evINFO(traceidx).baselinevalues;
 croptrace = NaN(numev,PREPOINTS+POSTPOINTS+1);
 xpoints = (0:PREPOINTS+POSTPOINTS).*FTIME.*1000; % in [ms]
@@ -40,16 +40,16 @@ goOn = [];
 %% Extrace cropped out region around events
 for iE = 1:numev
     % Event preceding part
-    if crossidx(iE)-PREPOINTS < 1
-        croptrace(iE,PREPOINTS-crossidx(iE)+2:PREPOINTS+1) = worktrace(1:crossidx(iE))';
+    if onsetidx(iE)-PREPOINTS < 1
+        croptrace(iE,PREPOINTS-onsetidx(iE)+2:PREPOINTS+1) = worktrace(1:onsetidx(iE))';
     else
-        croptrace(iE,1:PREPOINTS+1) = worktrace(crossidx(iE)-PREPOINTS:crossidx(iE))';
+        croptrace(iE,1:PREPOINTS+1) = worktrace(onsetidx(iE)-PREPOINTS:onsetidx(iE))';
     end
     % Event following part
-    if crossidx(iE)+POSTPOINTS > numel(worktrace)
-        croptrace(iE,PREPOINTS+2:PREPOINTS+1+numel(worktrace)-crossidx(iE)) = worktrace(crossidx(iE)+1:end);
+    if onsetidx(iE)+POSTPOINTS > numel(worktrace)
+        croptrace(iE,PREPOINTS+2:PREPOINTS+1+numel(worktrace)-onsetidx(iE)) = worktrace(onsetidx(iE)+1:end);
     else
-        croptrace(iE,PREPOINTS+2:end) = worktrace(crossidx(iE)+1:crossidx(iE)+POSTPOINTS);
+        croptrace(iE,PREPOINTS+2:end) = worktrace(onsetidx(iE)+1:onsetidx(iE)+POSTPOINTS);
     end
     % Delta F over F
     croptrace(iE,:) = (croptrace(iE,:)-baseline(iE))./baseline(iE);

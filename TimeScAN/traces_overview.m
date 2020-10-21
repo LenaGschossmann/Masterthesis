@@ -76,7 +76,7 @@ for iTr = 1:numtr
             ty.Color(4) = THRESHALPHA;
         end
         if PLOTPEAKS, evidx = timepts(evINFO(seltrace(iTr)).peakidx);
-        else, evidx = timepts(evINFO(seltrace(iTr)).crossidx);
+        else, evidx = timepts(evINFO(seltrace(iTr)).onsetidx);
         end
         
         for iE = 1:numel(evidx), hold on; xline(evidx(iE), 'Linewidth',LW1, 'Color', EVPLOTCOL); end
