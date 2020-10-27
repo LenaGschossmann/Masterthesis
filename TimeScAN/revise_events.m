@@ -23,7 +23,7 @@ revfigpos = [round(SCRSZ(1)/2-whrevfig(1)) round(SCRSZ(2)/2-whrevfig(2)/2) whrev
 trcplotpos = [hspace*1.5 vspace*2+2*whbut(2) whtracewin];
 acceptbutpos = [0.5-hspace*0.2-whbut(1) vspace whbut];
 rejectbutpos = [0.5+hspace*0.2 acceptbutpos(2) whbut];
-backbutpos = [rejectbutpos(1)+rejectbutpos(3)+hspace/2 acceptbutpos(2) whbut(1)*0.5 whbut(2)];
+backbutpos = [rejectbutpos(1)+rejectbutpos(3)+hspace/2 acceptbutpos(2) whbut(1)*0.65 whbut(2)];
 showrbpos = [acceptbutpos(1)-whrb(1)-hspace/3 acceptbutpos(2)+acceptbutpos(4)/2-whrb(2)/2 whrb];
 
 %% Initialize und unpack varaibles
@@ -59,9 +59,9 @@ end
 revfig = figure('Position',revfigpos, 'Name', 'Event Revision');
 set(revfig,'WindowKeyPressFcn',@keyPressCallback);
 trcplot = subplot('position', trcplotpos);
-acceptbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', acceptbutpos,'string', 'ACCEPT','BackgroundColor', '#77AC30','FONTSIZE', fs, 'callback', {@cb_acceptbut});
-rejectbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', rejectbutpos,'string', 'REJECT','BackgroundColor', '#A2142F','FONTSIZE', fs, 'callback', {@cb_rejectbut});
-backbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', backbutpos,'string', 'Undo','FONTSIZE', FONTSIZE, 'callback', {@cb_backbut});
+acceptbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', acceptbutpos,'string', 'ACCEPT (a)','BackgroundColor', '#77AC30','FONTSIZE', fs, 'callback', {@cb_acceptbut});
+rejectbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', rejectbutpos,'string', 'REJECT (d)','BackgroundColor', '#A2142F','FONTSIZE', fs, 'callback', {@cb_rejectbut});
+backbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', backbutpos,'string', 'Undo (b)','FONTSIZE', FONTSIZE, 'callback', {@cb_backbut});
 showrb = uicontrol('parent', revfig, 'style', 'radiobutton','units', 'normalized', 'position', showrbpos,'string', 'Show all', 'Value', 0,'FONTSIZE', FONTSIZE, 'callback', {@cb_showrb});
 
 plot_traces();
