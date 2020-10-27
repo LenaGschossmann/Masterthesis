@@ -57,6 +57,7 @@ end
 
 %% Display
 revfig = figure('Position',revfigpos, 'Name', 'Event Revision');
+set(revfig,'WindowKeyPressFcn',@keyPressCallback);
 trcplot = subplot('position', trcplotpos);
 acceptbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', acceptbutpos,'string', 'ACCEPT','BackgroundColor', '#77AC30','FONTSIZE', fs, 'callback', {@cb_acceptbut});
 rejectbut = uicontrol('parent', revfig, 'style', 'pushbutton','units', 'normalized', 'position', rejectbutpos,'string', 'REJECT','BackgroundColor', '#A2142F','FONTSIZE', fs, 'callback', {@cb_rejectbut});
@@ -73,6 +74,34 @@ if isempty(goOn)
 end
 
 %% Local Callbacks
+    function keyPressCallback(~,ev)
+        if strcmp(ev.Key,'a')
+            keepev(currev) = true;
+            if currev < numev
+                currev = currev+1; plot_traces();
+            else
+                pause(0.1);
+                goOn = true;
+                close gcf;
+            end
+        elseif strcmp(ev.Key,'d')
+            keepev(currev) = false;
+            if currev < numev
+                currev = currev+1; plot_traces();
+            else
+                pause(0.1);
+                goOn = true;
+                close gcf;
+            end
+        elseif strcmp(ev.Key,'b')
+            if currev > 1
+                currev = currev-1;
+                keepev(currev) = false;
+                plot_traces();
+            end
+        end
+    end
+
     function cb_acceptbut(~,~)
         keepev(currev) = true;
         if currev < numev

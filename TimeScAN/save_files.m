@@ -51,6 +51,10 @@ if numtr == 1
     writematrix(croppedtraces, names{4}, 'Sheet', 'Traces');
     writecell(traceids, names{4}, 'Sheet', 'Trace IDs');
     
+    % Save struct()
+    strname = strcat(pn,'_event_struct.m');
+    save(strname, 'evINFO', '-v7.3');
+    disp('Writing finished!');
     
 else
     names = {'onsets',...
@@ -154,16 +158,17 @@ else
     writematrix(croppedtraces, croptrname, 'Sheet', 'Traces');
     writecell(traceids, croptrname, 'Sheet', 'Trace IDs'); % Info: Roi ID (row 1), Event ID (row 2), Onset index (row 3), Frametime (row 4)
     
+    % Save struct()
+    strname = strcat(pn,'_event_struct.m');
+    save(strname, 'evINFO', '-v7.3');
+    disp('Writing finished!');
+    
     if numtr == numel(ROILIST)
         close all;
         clear all;
     end
 end
 
-% Save struct()
-strname = strcat(pn,'_event_struct.m');
-save(strname, 'evINFO', '-v7.3');
-disp('Writing finished!');
 
     function [tmpcroptrace, tmptraceids] = crop_trace(tmpidx)
         %% Cropped traces
@@ -194,7 +199,7 @@ disp('Writing finished!');
             tmptraceids{1,iE} = ROILIST{tmpidx};
             tmptraceids{2,iE} = iE;
             tmptraceids{3,iE} = evINFO(tmpidx).onsetidx(iE);
-            tmptraceids{4,iE} = evINFO(tmpidx).ftime(iE);
+            tmptraceids{4,iE} = evINFO(tmpidx).ftime;
         end
         tmpcroptrace = tmpcroptrace'; % columns: Events, rows: Timepoints
     end
