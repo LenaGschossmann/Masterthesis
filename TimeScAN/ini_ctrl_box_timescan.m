@@ -206,6 +206,7 @@ uiwait;
                 % Subtract background
                 ROILIST(TRACEID) = [];
                 bgdata = TRACEDATA(:,TRACEID);
+                bgdata = mean(bgdata);
                 TRACEDATA(:,TRACEID) = [];
                 TRACEDATA = TRACEDATA-bgdata;
                 

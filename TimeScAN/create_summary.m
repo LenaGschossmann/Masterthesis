@@ -31,7 +31,7 @@ if SMTHWIN ~= 0, for iTr = 1:numtr, worktraces(:,iTr) = smooth_data(worktraces(:
 croptrace = NaN(numallev,PREPOINTS+POSTPOINTS+1);
 xpoints = (0:PREPOINTS+POSTPOINTS).*FTIME.*1000; % in [ms]
 rise = zeros(numallev,1); decay = zeros(numallev,1); amp = zeros(numallev,1);
-iei = []; cviei = zeros(numtr,2);
+iei = []; cviei = zeros(numtr,1);
 ii = 1;
 % Extrace cropped out region around events
 for iTr = 1:numtr
@@ -67,23 +67,23 @@ end
 
 %% Plots
 sp1 = subplot('Position', overlaypos);
-sp2a = subplot('Position', risepos);
-sp2b = subplot('Position', decaypos);
+% sp2a = subplot('Position', risepos);
+% sp2b = subplot('Position', decaypos);
 sp3 = subplot('Position', amphistpos);
 sp4 = subplot('Position', ampbarpos);
 sp5 = subplot('Position', ieihistpos);
 sp6 = subplot('Position', ieibarpos);
 sp7 = subplot('Position', cvieipos);
 
-axes(sp2a);
-boxplot(rise.*1000, 'Boxstyle', 'filled', 'colors', TRCPLOTCOL1, 'Symbol', 'ok'); % in [ms]
-set(gca,'FontSize', FONTSIZE-1);set(gca,'TitleFontSizeMultiplier', 1.25);
-set(gca, 'XTickLabel',''); ylabel('time [ms]'); title('Risetime');
-
-axes(sp2a);
-boxplot(decay.*1000, 'Boxstyle', 'filled', 'colors', TRCPLOTCOL1, 'Symbol', 'ok'); % in [ms]
-set(gca,'FontSize', FONTSIZE-1);set(gca,'TitleFontSizeMultiplier', 1.25);
-set(gca, 'XTickLabel',''); ylabel('time [ms]'); title('Decaytime');
+% axes(sp2a);
+% boxplot(rise.*1000, 'Boxstyle', 'filled', 'colors', TRCPLOTCOL1, 'Symbol', 'ok'); % in [ms]
+% set(gca,'FontSize', FONTSIZE-1);set(gca,'TitleFontSizeMultiplier', 1.25);
+% set(gca, 'XTickLabel',''); ylabel('time [ms]'); title('Risetime');
+% 
+% axes(sp2a);
+% boxplot(decay.*1000, 'Boxstyle', 'filled', 'colors', TRCPLOTCOL1, 'Symbol', 'ok'); % in [ms]
+% set(gca,'FontSize', FONTSIZE-1);set(gca,'TitleFontSizeMultiplier', 1.25);
+% set(gca, 'XTickLabel',''); ylabel('time [ms]'); title('Decaytime');
 
 axes(sp3);
 histogram(amp,nbins, 'FaceColor', TRCPLOTCOL1);
@@ -109,7 +109,7 @@ set(gca, 'XTickLabel',''); title('Inter-Event-Intervals');
 axes(sp7);
 boxplot(cviei, 'Boxstyle', 'filled', 'colors', TRCPLOTCOL1);
 set(gca,'FontSize', FONTSIZE-1); set(gca,'TitleFontSizeMultiplier', 1.25);
-title('IEI CV');
+title('IEI CV'); set(gca, 'XTickLabel','');
 
 axes(sp1);
 for iE = 1:numallev
