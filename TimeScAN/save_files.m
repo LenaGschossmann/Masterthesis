@@ -1,6 +1,8 @@
 function save_files(traceindices)
 
-global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH FTIMEVEC PREPOINTS POSTPOINTS TOTP TRACEDATA SMTHWIN
+global FULLFILENAMES ROILIST evINFO FFORMAT SAVEPATH FTIMEVEC PREPOINTS...
+    POSTPOINTS TOTP TRACEDATA SMTHWIN
+
 warning('off','MATLAB:xlswrite:AddSheet');
 
 numtr = numel(traceindices);
@@ -32,6 +34,7 @@ if numtr == 1
     tbl.decaytime = evINFO(traceindices).decaytimes;
     tbl.iei = [evINFO(traceindices).ieis; NaN];
     tbl.baseline_values = evINFO(traceindices).baselinevalues;
+    %!!tbl.roi_area_um = repmat(AREADATA(traceindices),[numel(tbl.onset_idx) 1]);
     writetable(tbl, names{2});
     
     % Summarized Event info
@@ -44,6 +47,7 @@ if numtr == 1
     tbl.av_iei = evINFO(traceindices).aviei;
     tbl.cv_iei = evINFO(traceindices).cviei;
     tbl.eventrate = evINFO(traceindices).eventrate;
+    %!!tbl.roi_area_um = AREADATA(traceindices);
     writetable(tbl,names{3});
     
     % Cropped traces
@@ -66,11 +70,12 @@ else
         'risetimes',...
         'decaytimes',...
         'iei',...
-        'baseline'};
+        'baseline',...
+        'roi_area_um'};
 
     binaryname = strcat(pn, '_binary_events', '.xlsx');
     eventinfoname = strcat(pn, '_event_info', '.xlsx');
-    eventsummaryname = strcat(pn, '_event_sumary', '.xlsx');
+    eventsummaryname = strcat(pn, '_event_summary', '.xlsx');
     croptrname = strcat(pn, '_cropped_traces', '.xlsx');
     
     tbl_onset_binary = struct();
@@ -83,6 +88,7 @@ else
     tbl_decay = struct();
     tbl_ieis = struct();
     tbl_baselines = struct();
+    tbl_areas = struct();
     maxelem = 0;
     
     for iTr = 1:numtr, maxelem = max([maxelem numel(evINFO(traceindices(iTr)).onsetidx)]); end
@@ -120,7 +126,7 @@ else
             tbl_decay.(ROILIST{tmpidx}) = [evINFO(tmpidx).decaytimes; (repelem(NaN,fill))'];
             tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis; (repelem(NaN,maxelem-1-numel(evINFO(tmpidx).ieis)))'];
             tbl_baselines.(ROILIST{tmpidx}) = [evINFO(tmpidx).baselinevalues; (repelem(NaN,fill))'];
-       else       
+        else       
             tbl_onsetidx.(ROILIST{tmpidx}) = evINFO(tmpidx).onsetidx;
             tbl_peakidx.(ROILIST{tmpidx}) = evINFO(tmpidx).peakidx;
             tbl_amps.(ROILIST{tmpidx}) = evINFO(tmpidx).amps;
@@ -130,6 +136,7 @@ else
             tbl_ieis.(ROILIST{tmpidx}) = [evINFO(tmpidx).ieis];
             tbl_baselines.(ROILIST{tmpidx}) = evINFO(tmpidx).baselinevalues;
         end
+        %!!tbl_areas.(ROILIST{tmpidx}) = AREADATA(tmpidx);
         
         % Summarized Event info
         tbl = struct();
@@ -141,6 +148,7 @@ else
         tbl.av_iei = evINFO(tmpidx).aviei;
         tbl.cv_iei = evINFO(tmpidx).cviei;
         tbl.eventrate = evINFO(tmpidx).eventrate;
+        %!!tbl.roi_area_um = AREADATA(tmpidx);
         writetable(struct2table(tbl), eventsummaryname, 'Sheet', ROILIST{tmpidx});
     end
 
@@ -155,6 +163,7 @@ else
     writetable(struct2table(tbl_decay), eventinfoname, 'Sheet', names{8});
     writetable(struct2table(tbl_ieis), eventinfoname, 'Sheet', names{9});
     writetable(struct2table(tbl_baselines), eventinfoname, 'Sheet', names{10});
+    writetable(struct2table(tbl_areas), eventinfoname, 'Sheet', names{11});
     writematrix(croppedtraces, croptrname, 'Sheet', 'Traces');
     writecell(traceids, croptrname, 'Sheet', 'Trace IDs'); % Info: Roi ID (row 1), Event ID (row 2), Onset index (row 3), Frametime (row 4)
     
@@ -169,6 +178,12 @@ else
     end
 end
 
+roidistmtrx = ML_position(traceindices);
+roinames = ROILIST(traceindices);
+tbl = table();
+tbl.Roi = roinames;
+tbl.Distance_to_somata = roidistmtrx;
+writetable(tbl, strcat(pn,'Roi_to_soma_dist.xlsx'));
 
     function [tmpcroptrace, tmptraceids] = crop_trace(tmpidx)
         %% Cropped traces

@@ -2,9 +2,9 @@ function ini_ctrl_box_timescan()
 
 %% Declare globally shared variables
 global SCRSZ FNAME FONTSIZE SMTHWIN SAVEPATH...
-    FTIME CURRFILE NUMFILES SAVEPARENT FULLFILENAMES ROILIST TRCXLABEL...
-    RANGE TOTP TRACEID ROILIST TRACEDATA ISBGSUB evINFO FTIMEVEC XTYPE...
-    BASEPOINTS PREPOINTS POSTPOINTS
+    FTIME FTIMEPREV SAVEPARENT FULLFILENAMES ROILIST...
+    RANGE TOTP TRACEID TRACEDATA evINFO FTIMEVEC XTYPE...
+    BASEPOINTS PREPOINTS POSTPOINTS LOCAREAINFO SOMAINFO PXCLASSCNT
 
 %% Initiate (display) variables
 TRACEID = [];
@@ -12,9 +12,8 @@ showevents = false;
 showalltr = false;
 singlesave = false;
 detectall = false;
-importdata = [];
-importroi = [];
-evINFO = create_evInfo();
+importgraydata = [];
+importgrayrois = cell(0);
 if strcmp(XTYPE, 's'), txtcutin1 = num2str(PREPOINTS*FTIME); txtcutin2 = num2str(POSTPOINTS*FTIME);
 else, txtcutin1 = num2str(PREPOINTS); txtcutin2 = num2str(POSTPOINTS);
 end
@@ -81,7 +80,7 @@ summbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton','position', summbut
 
 detevbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton','position', detevbutpos,'string', 'Detect events','FONTSIZE', FONTSIZE, 'callback', {@cb_detevbut});
 detevallrb = uicontrol('parent', ctrlfig, 'style', 'radiobutton', 'position', detevallrbpos,'string', 'All', 'Value', detectall,'FONTSIZE', FONTSIZE, 'callback', {@cb_detevallrb});
-detevsaverb = uicontrol('parent', ctrlfig, 'style', 'radiobutton', 'position', detevsaverbpos,'string', 'Save single', 'Value', singlesave,'FONTSIZE', FONTSIZE, 'callback', {@cb_detevsaverb});
+% detevsaverb = uicontrol('parent', ctrlfig, 'style', 'radiobutton', 'position', detevsaverbpos,'string', 'Save single', 'Value', singlesave,'FONTSIZE', FONTSIZE, 'callback', {@cb_detevsaverb});
 
 disptrbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', disptrbutpos,'string', 'Show traces','FONTSIZE', FONTSIZE, 'callback', {@cb_disptrbut});
 dispalltrrb = uicontrol('parent', ctrlfig, 'style', 'radiobutton', 'position', dispalltrrbpos,'string', 'All', 'Value', showalltr,'FONTSIZE', FONTSIZE, 'callback', {@cb_dispalltrrb});
@@ -118,28 +117,73 @@ uiwait;
 
 %% Local callbacks
     function cb_openbut(~,~)
-        [filenames, pathnames] = uigetfile({'*.csv', '*.xlsx'}, 'Multiselect', 'off'); % Select (multiple) files for processing
-        FNAME = filenames;
-        if isa(filenames,'cell') || isa(filenames,'char')
-            if ~isa(filenames,'cell'), filenames = {filenames}; end
+        [filenames, pathnames] = uigetfile({'*.csv'; '*.xlsx'}, 'Select intensity, location, dendritic count data','Multiselect', 'on');
+        if isa(filenames,'char'), filenames = {filenames}; end
+        if isa(filenames,'cell')
+            if numel(filenames) > 1 % Location file was selected
+                matchloc = cellfun(@isempty, regexp(filenames, 'loc_ar', 'match'));
+                matchcnt = cellfun(@isempty, regexp(filenames, 'dend_px', 'match'));
+                idLoc = find(matchloc==0);
+                idCnt = find(matchcnt==0);
+                idObs = find(matchcnt==1 & matchloc == 1);
+                FNAME = filenames{idObs};
+                % Open file with location and area information(col1: area in µm, col2-4: X, Y, Z
+                if ~isempty(idLoc)
+                    nameloc = fullfile(pathnames, filenames{idLoc});
+                    if isa(nameloc, 'cell'), nameloc = nameloc{1}; end
+                    importlocarea = readtable(nameloc);
+                    importlocarea = table2array(importlocarea);
+                    % Ask for table with location of somata and load
+                    defpath = split(pathnames, '\');
+                    defpath = fullfile(defpath{1:end-2}, '*.csv; *.xlsx');
+                    [somafile, somapath] = uigetfile(defpath, 'Select table with location of somata');
+                    if ~isempty(somafile) && isa(somafile, 'char')
+                        somaname = fullfile(somapath, somafile);
+                        if isa(somaname, 'cell'), somaname  = somaname{1}; end
+                        SOMAINFO = readtable(somaname);
+                        SOMAINFO = table2array(SOMAINFO);
+                    else, SOMAINFO = [];
+                    end
+                    clear('locname', 'somaname');
+                end
+                if ~isempty(idCnt)
+                    namecnt = fullfile(pathnames, filenames{idCnt});
+                    if isa(namecnt, 'cell'), namecnt = namecnt{1}; end
+                    PXCLASSCNT = readtable(namecnt);
+                    PXCLASSCNT = table2array(PXCLASSCNT); % col1: non-dendritic, col2: dendritic
+                end
+            else
+                FNAME = filenames{1};
+                SOMAINFO =  [];
+                importlocarea = [];
+            end
             if isempty(SAVEPARENT), SAVEPARENT = uigetdir(pathnames, 'Parent folder for saving'); end % Select path for parent folder of saved files
-            FULLFILENAMES = fullfile(pathnames, filenames); FULLFILENAMES = FULLFILENAMES{1};
+            FULLFILENAMES = fullfile(pathnames, FNAME);
+            if isa(FULLFILENAMES, 'cell'), FULLFILENAMES = FULLFILENAMES{1}; end
             [~,f,~] = fileparts(FULLFILENAMES);
             SAVEPATH = strcat(SAVEPARENT,'\',f);
             if ~exist(SAVEPATH,'dir'), mkdir(SAVEPATH); end
-            NUMFILES = size(filenames,2);
+            
+            % Read intensity data
             datatable = readtable(FULLFILENAMES);
-            importroi = datatable.Properties.VariableNames;                   % ROI references for TRACEDATA
-            importdata = table2array(datatable);                             % Data to work with (is subject to changes)
-            if unique(diff(importdata(:,1))) == 1                            % Delete first column if it carries only row ids
-                importdata = importdata(:,2:end);
-                importroi = importroi(2:end);
+            datacolnames = datatable.Properties.VariableNames;              % ROI references for TRACEDATA
+            datarray = table2array(datatable); clear('datatable');
+            
+            for ii = 1:numel(datacolnames)                                  % Remove any column with information that is not the mean intensity
+                datacolnames{ii} = upper(datacolnames{ii});
+                if strncmp(datacolnames{ii},'MEAN',4)
+                    importgraydata = [importgraydata datarray(:,ii)];
+                    importgrayrois = [importgrayrois datacolnames{ii}(6:end-1)]; % Strip name from "Mean()" (works for data saved from ImageJ ROI measurement)
+                end
             end
+            clear('datarray','datacolnames');
+            
             % Sort by number
-            sortidx = roi_sort(importroi);
-            importroi = importroi(sortidx); importdata = importdata(:,sortidx);
-            for iTr = 1:numel(importroi), importroi{iTr}= strtrim(strrep(importroi{iTr},'_','')); end
-            TRACEDATA = importdata; ROILIST = importroi;
+            sortidx = roi_sort(importgrayrois);
+            importgrayrois = importgrayrois(sortidx);
+            importgraydata = importgraydata(:,sortidx);
+            if ~isempty(importlocarea), importlocarea = importlocarea(sortidx,:); end
+            TRACEDATA = importgraydata; ROILIST = importgrayrois; LOCAREAINFO = importlocarea;
 %             ft = inputdlg('Frame time in ms:', 'Frame Time', [1 40]); ft = str2double(ft{1}); 
 %             if ~isempty(ft), FTIME = ft/1000; end % Convert to sec
             RANGE = [1 size(TRACEDATA,1)]; TOTP = RANGE(2);
@@ -163,12 +207,37 @@ uiwait;
             FTIMEVEC = (1:TOTP).*FTIME;
         end
         if strcmp(XTYPE,'s')
-            basepin.String = num2str(BASEPOINTS*FTIME);
-            trcsmthin.String = num2str(SMTHWIN*FTIME);
-            if ~strcmp(rangein1.String,''), rangein1.String = num2str(RANGE(1)*FTIME); end
-            if ~strcmp(rangein2.String,''), rangein2.String = num2str(RANGE(2)*FTIME); end
-            cut1in.String = num2str(PREPOINTS*FTIME); cut2in.String = num2str(POSTPOINTS*FTIME);
+            BASEPOINTS = round(str2num(basepin.String)/FTIMEPREV); basepin.String = BASEPOINTS*FTIME;
+            PREPOINTS = round(str2num(cut1in.String)/FTIMEPREV); cut1in.String = PREPOINTS*FTIME;
+            POSTPOINTS = round(str2num(cut2in.String)/FTIMEPREV); cut2in.String = POSTPOINTS*FTIME;
+            SMTHWIN = round(str2num(trcsmthin.String)/FTIMEPREV); trcsmthin.String = SMTHWIN*FTIME;
+            if ~strcmp(rangein1.String,'')
+                RANGE(1) = round(str2num(rangein1.String)/FTIMEPREV);
+                if RANGE(1) < 1, RANGE(1) = 1; end
+                rangein1.String = RANGE(1)*FTIME;
+            end
+            if ~strcmp(rangein2.String,'')
+                RANGE(2) = round(str2num(rangein2.String)/FTIMEPREV);
+                if RANGE(2) > TOTP, RANGE(2) = TOTP; end
+                rangein2.String = RANGE(2)*FTIME;
+            end
+        elseif strcmp(XTYPE,'f')
+            BASEPOINTS = round(str2num(basepin.String)*FTIMEPREV/FTIME); basepin.String = BASEPOINTS;
+            PREPOINTS = round(str2num(cut1in.String)*FTIMEPREV/FTIME); cut1in.String = PREPOINTS;
+            POSTPOINTS = round(str2num(cut2in.String)*FTIMEPREV/FTIME); cut2in.String = POSTPOINTS;
+            SMTHWIN = round(str2num(trcsmthin.String)*FTIMEPREV/FTIME); trcsmthin.String = SMTHWIN;
+            if ~strcmp(rangein1.String,'')
+                RANGE(1) = round(str2num(rangein1.String)*FTIMEPREV/FTIME);
+                if RANGE(1) < 1, RANGE(1) = 1; end
+                rangein1.String = RANGE(1);
+            end
+            if ~strcmp(rangein2.String,'')
+                RANGE(2) = round(str2num(rangein2.String)*FTIMEPREV/FTIME);
+                if RANGE(2) > TOTP, RANGE(2) = TOTP; end
+                rangein2.String = RANGE(2);
+            end
         end
+        FTIMEPREV = FTIME;
     end
 
     function cb_tsmetabut(~,~)
@@ -205,6 +274,7 @@ uiwait;
             if strncmp(hObj.String,'RAW',3)
                 % Subtract background
                 ROILIST(TRACEID) = [];
+                LOCAREAINFO(TRACEID,:) = [];
                 bgdata = TRACEDATA(:,TRACEID);
                 bgdata = mean(bgdata);
                 TRACEDATA(:,TRACEID) = [];
@@ -215,14 +285,17 @@ uiwait;
                 roilistlb.Value = 1;
                 roilistlb.String = ROILIST;
                 ISBGSUB = true;
+                evINFO = create_evInfo();
             else
                 hObj.String = 'RAW > Subtract';
                 hObj.BackgroundColor = [0.94 0.94 0.94];
-                ROILIST = importroi;                                        % Set back to roilist with background trace included
-                TRACEDATA = importdata;                                     % Set back to data without background subtraction
+                ROILIST = importgrayrois;                                        % Set back to roilist with background trace included
+                LOCAREAINFO = importlocarea;
+                TRACEDATA = importgraydata;                                     % Set back to data without background subtraction
                 roilistlb.Value = 1;
                 roilistlb.String = ROILIST;
                 ISBGSUB = false;
+                evINFO = create_evInfo();
             end
         end
     end
@@ -333,7 +406,7 @@ uiwait;
         if strcmp(hObj.String, 'All'), saveidx = 1:numel(ROILIST);
         else, saveidx = TRACEID;
         end
-        save_files(saveidx);
+        save_files_2(saveidx);
     end
 
     function sortidx = roi_sort(namelist)

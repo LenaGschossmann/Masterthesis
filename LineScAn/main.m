@@ -7,6 +7,11 @@ global SCRSZ WHFIG WHTRCFIG POSITIONFIG POSITIONTRCFIG POSITIONROISELECT FONTSIZ
     figINFO roiINFO traceINFO ROICNTID FIGCOUNTER CURRFILE...
     SAVEPARENT IMHW FTIME COMPOSITE2D SAVEPATH FULLFILENAMES NUMFILES FNAME IMMETA
 
+% Add path to directory with scripts for reading bioformat files
+wd = pwd(); p = split(wd,'\'); p=p(1:end-1); pp = []; for ii = 1:numel(p), pp = fullfile(pp, p{ii}); end
+pp = fullfile(pp,'OpenBFiles');
+addpath(pp); clear('p', 'pp');
+
 % Initiate variables
 FIGCOUNTER = 0;
 ROICNTID = 1;

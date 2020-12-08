@@ -4,6 +4,7 @@ global SCRSZ FTIME TRCPLOTCOL1 TRCALPHA evINFO LW1 LW2 PREPOINTS POSTPOINTS FONT
     XLINEALPHA FTIMEVEC
 
 %% Initialize display parameters
+an = [];
 fs = FONTSIZE+1;
 whrevfig = [400 400];
 hspace = 40;
@@ -37,7 +38,7 @@ croptrace = NaN(numev,PREPOINTS+POSTPOINTS+1);
 xpoints = (0:PREPOINTS+POSTPOINTS).*FTIME.*1000; % in [ms]
 goOn = [];
 
-%% Extrace cropped out region around events
+%% Extract cropped out region around events
 for iE = 1:numev
     % Event preceding part
     if onsetidx(iE)-PREPOINTS < 1
@@ -131,23 +132,26 @@ end
 
     function plot_traces()
         axes(trcplot);
+        if isempty(an), an = annotation('textbox', [.65 .8 .15 .1], 'FitBoxToText','on','EdgeColor', [1 1 1],'Fontsize', fs); end
         cla;
         if showall
             for iE = 1:numev
-                p=plot(xpoints,croptrace(iE,:),'linewidth', LW1, 'color', TRCPLOTCOL1); p.Color(4) = TRCALPHA;
+                p = plot(xpoints,croptrace(iE,:),'linewidth', LW1, 'color', TRCPLOTCOL1); p.Color(4) = TRCALPHA;
                 hold on;
             end
         else
             if currev > 1
                 plotidx = find(keepev(1:currev-1) == true);
                 for iE = 1:numel(plotidx)
-                    p=plot(xpoints,croptrace(plotidx(iE),:),'linewidth', LW1, 'color', TRCPLOTCOL1); p.Color(4) = TRCALPHA;
+                    p = plot(xpoints,croptrace(plotidx(iE),:),'linewidth', LW1, 'color', TRCPLOTCOL1); p.Color(4) = TRCALPHA;
                     hold on;
                 end
             end
         end
         % Current trace
-        p=plot(xpoints,croptrace(currev,:),'linewidth', LW2, 'color', [0 0 0]);
+        p = plot(xpoints,croptrace(currev,:),'linewidth', LW2, 'color', [0 0 0]);
+        hold on;
+        pts = plot(xpoints,croptrace(currev,:),'o', 'color', [0 0 0]);
         xl=xline(xpoints(PREPOINTS+1), 'Linewidth',LW2+1, 'Color', [0 0 0]); alpha(XLINEALPHA); %xl.Color(4) = XLINEALPHA;
         xlim([xpoints(1) xpoints(end)]);
         xtckmarks = xpoints(1:5:end);
@@ -157,6 +161,7 @@ end
         xlabel('time [ms]'); ylabel('dF/F');
         yrange = [min(croptrace, [], 'all') max(croptrace, [], 'all')];
         ylim([yrange(1)-diff(yrange)/10 yrange(2)+diff(yrange)/10]);
+        an.String = sprintf('Frame: %i', evINFO(traceidx).onsetidx(currev));
     end
 
     function cb_backbut(~,~)

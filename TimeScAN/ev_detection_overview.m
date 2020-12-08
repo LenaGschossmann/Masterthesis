@@ -42,16 +42,17 @@ end
 listcurrent = [ROILIST(seltrace)];
 
 %% Event detection
-detectidx = find(strcmp({evINFO(seltrace).accepted}, 'pending'));
-detect_events(detecttr(:,detectidx), seltrace(detectidx));
-for iTr = 1:numtr
-    if any(iTr == detectidx)
-        keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
-    else
-        keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
-        revised(iTr,1) = true;
-    end
-end
+% THRESHOLD = 10000;
+% detectidx = find(strcmp({evINFO(seltrace).accepted}, 'pending'));
+% detect_events(detecttr(:,detectidx), seltrace(detectidx));
+% for iTr = 1:numtr
+%     if any(iTr == detectidx)
+%         keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
+%     else
+%         keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
+%         revised(iTr,1) = true;
+%     end
+% end
 
 %% Initialize display parameters
 fs = FONTSIZE+1;
@@ -83,7 +84,7 @@ backbutpos = [tracewinpos(1)+tracewinpos(3)/2+hspace/3 tracewinpos(2)-vspace*1.5
 threshtypetxtpos = [histwinpos(1)+histwinpos(3)+hspace*0.7 histwinpos(2)+histwinpos(4)-whtxt(2)-vspace/2 whtxt(1)*0.5 whtxt(2)];
 threshtyperbpos = [threshtypetxtpos(1) threshtypetxtpos(2)-whtxt(2) whrb;...
     threshtypetxtpos(1)+whrb(1)*1.5 threshtypetxtpos(2)-whtxt(2) whrb];
-threshtxtpos = [threshtypetxtpos(1) threshtyperbpos(2,2)-whrb(2)-vspace/3 whtxt(1)*0.8 whtxt(2)];
+threshtxtpos = [histwinpos(1)+histwinpos(3)+hspace threshtyperbpos(2,2)-whrb(2)-vspace/3 whtxt(1)*0.8 whtxt(2)];
 threshinpos = [threshtxtpos(1) threshtxtpos(2)-whin(2)-vspace/8 whin];
 peakinpos = [threshinpos(1)+threshinpos(3)+hspace/5 threshtxtpos(2)-whin(2)-vspace/8 whin];
 
@@ -166,12 +167,15 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
                 sprintf('Threshold: %i | type: %s', round(evINFO(seltrace(currdisp)).threshold), evINFO(seltrace(currdisp)).thresholdtype)};
             txtbox1.String = ['Processed with following settings:', '***', info];
             acceptbut.String = 'Re-run detection';
+            THRESHOLD = evINFO(seltrace(currdisp)).threshold;
         else
             acceptbut.Enable = 'on'; revisebut.Enable = 'on';
             info = {'not yet accepted'};
             txtbox1.String = ['Processed with following settings:', '***', info];
             acceptbut.String = 'Accept events';
+            THRESHOLD = 10000;
         end
+        threshin.String = num2str(THRESHOLD);
         % Histogram update
         deltas = diff(detecttr(:,currdisp));
         deltas = sort(deltas, 'descend'); deltas = deltas(1:round(0.5*numel(deltas)));
@@ -195,16 +199,10 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
     function cb_threshin(hObj,~)
         THRESHOLD = str2double(get(hObj,'String'));
         % Apply new threshold to detection
-        detectidx = find(strcmp({evINFO(seltrace).accepted}, 'pending'));
-        
-        detect_events(detecttr(:,detectidx), seltrace(detectidx));
-        for iTr = 1:numtr
-            if any(iTr == detectidx)
-                keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
-            else
-                keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
-                revised(iTr,1) = true;
-            end
+        if strcmp({evINFO(seltrace(currdisp)).accepted}, 'pending')
+            detect_events(detecttr(:,currdisp), seltrace(currdisp));
+            keepev{currdisp,1} = false(numel(evINFO(seltrace(currdisp)).onsetidx),1);
+            revised(currdisp,1) = false;
         end
         plot_trace();
     end
@@ -212,19 +210,13 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
     function cb_peakthreshin(hObj,~)
         PEAKTHRESHOLD = str2double(get(hObj,'String'));
         % Apply new threshold to detection
-        detectidx = find(strcmp({evINFO(seltrace).accepted}, 'pending'));
-        detect_events(detecttr(:,detectidx), seltrace(detectidx));
-        for iTr = 1:numtr
-            if any(iTr == detectidx)
-                keepev{iTr,1} = false(numel(evINFO(iTr).onsetidx),1);
-            else
-                keepev{iTr,1} = true(numel(evINFO(seltrace(iTr)).onsetidx),1);
-                revised(iTr,1) = true;
-            end
+        if strcmp({evINFO(seltrace(currdisp)).accepted}, 'pending')
+            detect_events(detecttr(:,currdisp), seltrace(currdisp));
+            keepev{currdisp,1} = false(numel(evINFO(seltrace(currdisp)).onsetidx),1);
+            revised(currdisp,1) = false;
         end
         plot_trace();
     end
-
 
     function cb_acceptbut(hObj,~)
         if strncmp(hObj.String, 'Re',2)

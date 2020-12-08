@@ -1,7 +1,7 @@
 function update_evinfo(traceidx, keepev)
 
 %% Declare globally shared variables
-global PLOTPEAKS FTIME evINFO
+global PLOTPEAKS FTIME evINFO PREPOINTS POSTPOINTS BASEPOINTS
 
 %% Update information
 onsetidx = evINFO(traceidx).onsetidx;
@@ -19,12 +19,17 @@ evINFO(traceidx).amps_dFoF = evINFO(traceidx).amps_dFoF(keepev);
 evINFO(traceidx).baselinevalues = evINFO(traceidx).baselinevalues(keepev);
 evINFO(traceidx).risetimes = evINFO(traceidx).risetimes(keepev);
 evINFO(traceidx).decaytimes = evINFO(traceidx).decaytimes(keepev);
+evINFO(traceidx).preframes = PREPOINTS;
+evINFO(traceidx).postframes = POSTPOINTS;
+evINFO(traceidx).baseframes = BASEPOINTS;
 
 %% Recalculate
 if numel(evINFO(traceidx).onsetidx) > 1
     if PLOTPEAKS, evINFO(traceidx).ieis = diff(evINFO(traceidx).peakidx).*FTIME;
     else, evINFO(traceidx).ieis = diff(evINFO(traceidx).onsetidx).*FTIME;
     end
+else
+    evINFO(traceidx).ieis = NaN;
 end
 
 evINFO(traceidx).cviei = std(evINFO(traceidx).ieis)/mean(evINFO(traceidx).ieis);
