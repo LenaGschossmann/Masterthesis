@@ -3,7 +3,7 @@ function ev_detection_overview(detectall, singlesave)
 % Declare globally shared variables
 global WHTRCFIG POSITIONTRCFIG FONTSIZE TRCYLABEL TRCXLABEL TRCPLOTCOL1...
    PLOTPEAKS SMTHWIN FTIME TRACEDATA ROILIST RANGE TRACEID evINFO LW1 LW2...
-   FTIMEVEC XTYPE THRESHOLD PEAKTHRESHOLD THRESHOLDTYPE XLINEALPHA
+   FTIMEVEC XTYPE THRESHOLD PEAKTHRESHOLD THRESHOLDTYPE XLINEALPHA RANDMAXTHRESH
 
 %% Traces to be displayed
 if detectall, seltrace = 1:size(TRACEDATA,2);
@@ -63,7 +63,7 @@ sprow = 16;
 
 whtxtbox = [(WHTRCFIG(1))/spcol ((WHTRCFIG(2)-2*vspace)/sprow)*8];
 whtracewin = [((WHTRCFIG(1))/spcol)*4 ((WHTRCFIG(2)-3*vspace)/sprow)*9];
-whhistwin = [((WHTRCFIG(1))/spcol)*2 ((WHTRCFIG(2)-3*vspace)/sprow)*5];
+whhistwin = [((WHTRCFIG(1))/spcol)*2 ((WHTRCFIG(2)-3*vspace)/sprow)*5/2.2];
 whbutsm = [40 20];
 whbutbg = [85 30];
 whin = [50 20];
@@ -77,18 +77,20 @@ whin = whin./WHTRCFIG; whtxt = whtxt./WHTRCFIG; whrb = whrb./WHTRCFIG;
 
 txtbox1pos = [hspace 1-vspace-whtxtbox(2) whtxtbox];
 txtbox2pos = [hspace txtbox1pos(2)-whtxtbox(2) whtxtbox];
-histwinpos = [txtbox1pos(1)+txtbox1pos(3)+hspace vspace whhistwin];
+histwinpos1 = [txtbox1pos(1)+txtbox1pos(3)+hspace vspace*2+whhistwin(2) whhistwin];
+histwinpos2 = [txtbox1pos(1)+txtbox1pos(3)+hspace vspace whhistwin];
 tracewinpos = [txtbox1pos(1)+txtbox1pos(3)+hspace 1-vspace-whtracewin(2) whtracewin];
 fwbutpos = [tracewinpos(1)+tracewinpos(3)/2-hspace/3-whbutsm(1) tracewinpos(2)-vspace*1.5 whbutsm];
 backbutpos = [tracewinpos(1)+tracewinpos(3)/2+hspace/3 tracewinpos(2)-vspace*1.5 whbutsm];
-threshtypetxtpos = [histwinpos(1)+histwinpos(3)+hspace*0.7 histwinpos(2)+histwinpos(4)-whtxt(2)-vspace/2 whtxt(1)*0.5 whtxt(2)];
+threshtypetxtpos = [histwinpos1(1)+histwinpos1(3)+hspace*0.7 histwinpos1(2)+histwinpos1(4)-whtxt(2)-vspace/2 whtxt(1)*0.5 whtxt(2)];
 threshtyperbpos = [threshtypetxtpos(1) threshtypetxtpos(2)-whtxt(2) whrb;...
     threshtypetxtpos(1)+whrb(1)*1.5 threshtypetxtpos(2)-whtxt(2) whrb];
-threshtxtpos = [histwinpos(1)+histwinpos(3)+hspace threshtyperbpos(2,2)-whrb(2)-vspace/3 whtxt(1)*0.8 whtxt(2)];
+threshtxtpos = [histwinpos1(1)+histwinpos1(3)+hspace*0.7 threshtyperbpos(2,2)-whrb(2)-vspace/3 whtxt(1)*0.5 whtxt(2)];
 threshinpos = [threshtxtpos(1) threshtxtpos(2)-whin(2)-vspace/8 whin];
 peakinpos = [threshinpos(1)+threshinpos(3)+hspace/5 threshtxtpos(2)-whin(2)-vspace/8 whin];
+randthreshtxtpos = [histwinpos1(1)+histwinpos1(3)+hspace*0.7 threshinpos(2)-threshinpos(4)-vspace/2 whtxt(1)*0.7 whtxt(2)];
 
-statetxtpos = [threshtxtpos(1)+threshtxtpos(3)+0.6*hspace histwinpos(2)+histwinpos(4) whtxt(1)*0.7 whtxt(2)*2];
+statetxtpos = [threshtxtpos(1)+threshtxtpos(3)+0.6*hspace histwinpos1(2)+histwinpos1(4) whtxt(1)*0.7 whtxt(2)*2];
 acceptbutpos = [statetxtpos(1)+hspace*0.8 statetxtpos(2)-whbutbg(2)-vspace/3 whbutbg];
 revisebutpos = [acceptbutpos(1) acceptbutpos(2)-whbutbg(2)-vspace/3 whbutbg];
 closebutpos = [acceptbutpos(1) revisebutpos(2)-whbutbg(2)-vspace/3 whbutbg];
@@ -108,6 +110,8 @@ peakin = uicontrol('parent', evdetfig, 'style', 'edit','units', 'normalized','po
 threshtypetxt = uicontrol('parent', evdetfig, 'style', 'text','units', 'normalized','position', threshtypetxtpos,'string', 'Threshold type:','FONTSIZE', FONTSIZE);
 threshtyperb1 = uicontrol('parent', evdetfig, 'style', 'radiobutton', 'units', 'normalized','position', threshtyperbpos(1,:),'string', 'delta F', 'Value', 1,'FONTSIZE', FONTSIZE, 'callback', {@cb_threshtyperb});
 threshtyperb2 = uicontrol('parent', evdetfig, 'style', 'radiobutton', 'units', 'normalized','position', threshtyperbpos(2,:),'string', 'sd', 'Value', 0,'FONTSIZE', FONTSIZE, 'callback', {@cb_threshtyperb});
+
+randthreshtxt = uicontrol('parent', evdetfig, 'style', 'text','units', 'normalized','position', randthreshtxtpos,'string', '','FONTSIZE', FONTSIZE);
 
 statetxt = uicontrol('parent', evdetfig, 'style', 'text','units', 'normalized','position', statetxtpos,...
     'string', {'Event detection state:', evINFO(seltrace(currdisp)).accepted},'FONTSIZE', fs+1,...
@@ -130,11 +134,13 @@ end
 tracewin = subplot('Position', tracewinpos, 'parent', evdetfig);
 plot_trace();
 
-% Histogram
+% Histograms
 deltas = diff(detecttr(:,currdisp));
-deltas = sort(deltas, 'descend'); deltas = deltas(1:round(0.5*numel(deltas)));
-histwin = subplot('Position', histwinpos, 'parent', evdetfig);
-h = histogram(deltas, 20);
+% deltas = sort(deltas, 'descend'); deltas = deltas(1:round(0.5*numel(deltas)));
+histwin1 = subplot('Position', histwinpos1, 'parent', evdetfig);
+h = histogram(deltas, 100); xlabel('Distribution of df values');
+
+histwin2 = subplot('Position', histwinpos2, 'parent', evdetfig);
 
 % Trace buttons
 fwbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',  'units', 'normalized',...
@@ -179,7 +185,7 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
         % Histogram update
         deltas = diff(detecttr(:,currdisp));
         deltas = sort(deltas, 'descend'); deltas = deltas(1:round(0.5*numel(deltas)));
-        axes(histwin); h = histogram(deltas, 20);
+        axes(histwin1); h = histogram(deltas, 20);
     end
 
     function cb_threshtyperb(hObj,~)
@@ -276,6 +282,11 @@ backbut = uicontrol('parent', evdetfig, 'style', 'pushbutton',...
             else, evidx = timepts(evINFO(seltrace(currdisp)).onsetidx(keepev{currdisp,1}));
             end
             for iE = 1:numel(evidx), hold on; xl = xline(evidx(iE), 'Linewidth',LW2, 'Color', [0 0 0]); xl.Color(4) = XLINEALPHA; end
+        end
+        if ~isnan(evINFO(seltrace(currdisp)).rand_thresh)
+            axes(histwin2); histogram(evINFO(seltrace(currdisp)).rand_amp,20);
+            randthreshtxt.String = strcat('Amp threshold: ', num2str(evINFO(seltrace(currdisp)).rand_thresh));
+            xlabel('Distribution of rand. maxima amplitude');
         end
     end
 end

@@ -62,10 +62,9 @@ elseif strcmp(nam(end-2:end),'nd2')
     Datared = double(Datared);
 elseif strcmp(nam(end-2:end),'lsm')
     
-    [Y,Datared] = nd2read(nam,sframe,num2read);
+    [Y,~] = load_bf_file(nam,false);
     Y = Y(1+crop(1):end-crop(2),1+crop(3):end-crop(4),:);
-    Datared = Datared(1+crop(1):end-crop(2),1+crop(3):end-crop(4),:);
-    Datared = double(Datared);
+    Datared = [];
 else
     error('Unknown data type')
 end

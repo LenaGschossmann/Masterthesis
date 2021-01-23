@@ -35,5 +35,8 @@ for iTr = 1:numel(ROILIST)
     infostruct(iTr).risetimes = NaN;
     infostruct(iTr).decaytimes = NaN;
     infostruct(iTr).accepted = 'pending'; % values: pending, accepted
+    infostruct(iTr).randpos = NaN;
+    infostruct(iTr).rand_amp = NaN;
+    infostruct(iTr).rand_thresh = NaN;
 end
 end

@@ -4,7 +4,7 @@ function ini_ctrl_box_timescan()
 global SCRSZ FNAME FONTSIZE SMTHWIN SAVEPATH...
     FTIME FTIMEPREV SAVEPARENT FULLFILENAMES ROILIST...
     RANGE TOTP TRACEID TRACEDATA evINFO FTIMEVEC XTYPE...
-    BASEPOINTS PREPOINTS POSTPOINTS LOCAREAINFO SOMAINFO PXCLASSCNT
+    BASEPOINTS PREPOINTS POSTPOINTS LOCAREAINFO SOMAINFO PXCLASSCNT...
 
 %% Initiate (display) variables
 TRACEID = [];
@@ -145,6 +145,8 @@ uiwait;
                     else, SOMAINFO = [];
                     end
                     clear('locname', 'somaname');
+                else
+                    importlocarea = [];
                 end
                 if ~isempty(idCnt)
                     namecnt = fullfile(pathnames, filenames{idCnt});
@@ -187,7 +189,9 @@ uiwait;
 %             ft = inputdlg('Frame time in ms:', 'Frame Time', [1 40]); ft = str2double(ft{1}); 
 %             if ~isempty(ft), FTIME = ft/1000; end % Convert to sec
             RANGE = [1 size(TRACEDATA,1)]; TOTP = RANGE(2);
-            rangein1.String = num2str(RANGE(1)); rangein2.String = num2str(RANGE(2)); 
+            if strcmp(XTYPE,'s'),rangein1.String = num2str(RANGE(1))*FTIME; rangein2.String = num2str(RANGE(2))*FTIME;
+            else, rangein1.String = num2str(RANGE(1)); rangein2.String = num2str(RANGE(2));
+            end
             roilistlb.String = ROILIST;
             TRACEID = 1;
             nametxt.String = FNAME;
@@ -274,7 +278,7 @@ uiwait;
             if strncmp(hObj.String,'RAW',3)
                 % Subtract background
                 ROILIST(TRACEID) = [];
-                LOCAREAINFO(TRACEID,:) = [];
+                if ~isempty(LOCAREAINFO), LOCAREAINFO(TRACEID,:) = []; end
                 bgdata = TRACEDATA(:,TRACEID);
                 bgdata = mean(bgdata);
                 TRACEDATA(:,TRACEID) = [];
@@ -290,7 +294,7 @@ uiwait;
                 hObj.String = 'RAW > Subtract';
                 hObj.BackgroundColor = [0.94 0.94 0.94];
                 ROILIST = importgrayrois;                                        % Set back to roilist with background trace included
-                LOCAREAINFO = importlocarea;
+                if ~isempty(LOCAREAINFO), LOCAREAINFO = importlocarea; end
                 TRACEDATA = importgraydata;                                     % Set back to data without background subtraction
                 roilistlb.Value = 1;
                 roilistlb.String = ROILIST;

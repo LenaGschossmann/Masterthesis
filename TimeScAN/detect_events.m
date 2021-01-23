@@ -1,26 +1,20 @@
 function [events, tmpdftrace] = detect_events(worktraces, seltrace)
 % Obtain event-related parameters of spike-train data
 % Input:
-% alldata: Vector of data representing neural activity
-% range: [start end] Measurement points taken into account for extraction
-% of event-related parameters(if empty, all available points are used); for
-% calculation of average and sd, always all timepoints are used
-% av: Average of input trace (if not yet calculated, leave empty ([]))
-% sd: SD of input trace (if not yet calculated, leave empty ([]))
 % Output:
 % events: (struct) Information regarding extracted parameters
 % tmpdftrace: Vector of tmpdftrace data
 
 %% Declare globally shared variables
 global PLOTPEAKS THRESHOLDTYPE THRESHOLD PEAKTHRESHOLD SMTHWIN FTIME...
-    RANGE TOTP evINFO BASEPOINTS PREPOINTS POSTPOINTS
+    RANGE TOTP evINFO BASEPOINTS PREPOINTS POSTPOINTS PEAKWIN RANDNOISEPTS...
+    RANDMAXTHRESH
 
 %% Initialize variables
 if strcmp(THRESHOLDTYPE, 'dF'), mode = 1; else, mode = 0; end
 ptspre = PREPOINTS; ptspost = POSTPOINTS;
 if ptspre+ptspost+1 > diff(RANGE), RANGE = 1:TOTP; msgbox('The range was too small and set back!'); end
 
-peakwindow = 5; % Frames after threshold onset in which peak is detected
 dftraces = diff(worktraces,1,1);
 avtraces = mean(worktraces,1);
 sdtraces = std(worktraces,1);
@@ -34,7 +28,7 @@ for iTr = 1:size(worktraces,2)
         trcthreshold = THRESHOLD;
         trcpkthreshold = NaN;
         onset(end+1) = 0;
-
+        
     else %% Detect events based on sd
         % Define threshold for detection of event start and peak
         trcthreshold = avtraces(iTr)+THRESHOLD*sdtraces(iTr);
@@ -62,8 +56,8 @@ for iTr = 1:size(worktraces,2)
         risetime = zeros(size(onsetidx));
         decaytime = zeros(size(onsetidx));
         for iEv = 1:numev
-            if onsetidx(iEv)+peakwindow > numel(tmptrace), peakwindow= numel(tmptrace)-onsetidx(iEv); end
-            [valP,idxP] = max(tmptrace(onsetidx(iEv):onsetidx(iEv)+peakwindow));
+            if onsetidx(iEv)+PEAKWIN > numel(tmptrace), PEAKWIN= numel(tmptrace)-onsetidx(iEv); end
+            [valP,idxP] = max(tmptrace(onsetidx(iEv):onsetidx(iEv)+PEAKWIN));
             if strcmp(THRESHOLDTYPE,'dF') || (strcmp(THRESHOLDTYPE,'sd') && valP >= avtraces(iTr)+PEAKTHRESHOLD*sdtraces(iTr))
                 peakidx(iEv) = onsetidx(iEv)+idxP-1;
                 peaks(peakidx(iEv)) = true;
@@ -84,20 +78,43 @@ for iTr = 1:size(worktraces,2)
             end
         end
         
-        %% Calculate event-related parameters
-        if numel(onsetidx) > 1
-            if PLOTPEAKS, ieis = diff(peakidx).*FTIME;
-            else, ieis = diff(onsetidx).*FTIME;
-            end
-            cviei = std(ieis)/mean(ieis);
-            %     eventrate = numel(onsetidx)/(numel(tmpdftrace)*FTIME); % Eventrate calculated from number of events [Hz]
-            eventrate = 1/median(ieis); % Eventrate calculated from intereventintervals [Hz]
-        else
-            ieis= NaN;
-            cviei= NaN;
-            eventrate = NaN;
+        %% Discard event if amplitude lies within the random noise amplitude distribution
+        possiblepos = 1:numel(tmptrace)-PEAKWIN;
+        delpos = [];
+        for iEv = 1:numev, delpos = [delpos peakidx(iEv)-PEAKWIN:peakidx(iEv)]; end
+        possiblepos(delpos) = [];
+        randpos = randi(numel(possiblepos), RANDNOISEPTS, 1);
+        randpos = possiblepos(randpos);
+        randmax = zeros(RANDNOISEPTS,1);
+        for iP = 1:RANDNOISEPTS % Calculate amplitude of maxima in the specified window after event onset with randomly chosen points
+            tmpmax = max(tmptrace(randpos(iP):randpos(iP)+PEAKWIN));
+            randamp(iP) = tmpmax - get_base(tmptrace, randpos(iP));
         end
+        randthresh = RANDMAXTHRESH*max(randamp);
+        del = [];
+        for iEv = 1:numev
+            if amps(iEv) <= randthresh, del = [del iEv]; end % Exclude an event if its amplitude lies within the boundaries of noise amplitude
+        end
+        if ~isempty(del)
+            onsetidx(del) = []; peakidx(del) = [];
+            amps(del) = []; dFoF_amps(del) = []; baselinevals(del) = [];
+%             risetime(del) = []; decaytime(del) = [];
+            onset(del) = false; peaks(del) = false;
+        end
+    end
+    
+    %% Calculate event-related parameters
+    if numel(onsetidx) > 1
+        if PLOTPEAKS, ieis = diff(peakidx).*FTIME;
+        else, ieis = diff(onsetidx).*FTIME;
+        end
+        cviei = std(ieis)/mean(ieis);
+        %     eventrate = numel(onsetidx)/(numel(tmpdftrace)*FTIME); % Eventrate calculated from number of events [Hz]
+        eventrate = 1/median(ieis); % Eventrate calculated from intereventintervals [Hz]
     else
+        ieis= NaN;
+        cviei= NaN;
+        eventrate = NaN;
         onsetidx = NaN;
         peaks = zeros(size(onset));
         peakidx = NaN;
@@ -121,7 +138,7 @@ for iTr = 1:size(worktraces,2)
     evINFO(x).baselinevalues = baselinevals;
     evINFO(x).average = avtraces(iTr);
     evINFO(x).sd = sdtraces(iTr);
-    evINFO(x).thresholdtype = THRESHOLDTYPE; 
+    evINFO(x).thresholdtype = THRESHOLDTYPE;
     evINFO(x).threshold = trcthreshold;
     evINFO(x).peakthreshold = trcpkthreshold;
     evINFO(x).binaryonset = onset;
@@ -139,5 +156,18 @@ for iTr = 1:size(worktraces,2)
     evINFO(x).eventrate = eventrate;
     evINFO(x).risetimes = risetime;
     evINFO(x).decaytimes = decaytime;
+    evINFO(x).randpoints = randpos;
+    evINFO(x).rand_amp= randamp;
+    evINFO(x).rand_thresh= randthresh;
 end
+
+%% Local functions
+    function base = get_base(trc, pos)
+        if pos > BASEPOINTS
+            base = mean(trc(pos-BASEPOINTS:pos));
+        else
+            base = mean(trc(1:BASEPOINTS));
+        end
+    end
+
 end

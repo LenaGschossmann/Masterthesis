@@ -83,7 +83,7 @@ sumcnter = 1;
 
 if ~isempty(SOMAINFO)
     disp('Calculating distance information...');
-    roidistmtrx = ML_position(traceindices);
+    roidistmtrx = get_ML_position(traceindices);
 end
 
 disp('Preparing files for saving...');
