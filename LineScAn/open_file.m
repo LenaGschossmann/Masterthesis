@@ -7,6 +7,7 @@ global IMHW COMPOSITE2D FTIME SPATH FNAME IMMETA PLOTRANGE
 
 % Collapse 3rd dimension
 dims = size(tmpstack);
+if numel(dims) == 2, dims = [dims 1]; end
 COMPOSITE2D = zeros(dims(1)*dims(3), dims(2));
 catrange = 1:dims(1);
 for frame = 1:dims(3)

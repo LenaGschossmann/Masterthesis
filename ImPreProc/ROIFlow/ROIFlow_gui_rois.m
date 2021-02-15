@@ -15,11 +15,11 @@ SCALEINFO = struct('pointer', [],'xy_scale',[], 'txt',[]);
 BGINFO = struct('pointer', [],'bg_val',[], 'txt',[]);
 AIPLIST = [];
 PARAMS = get_predefined_params('subtract_perc', 0.15,...
-    'connc_px_thresh',5,'perc_thresh',95, 'perc_fac', 1.5, 'overlap_thresh',0.5);
+    'connc_px_thresh',10,'perc_thresh',95, 'perc_fac', 1.15, 'overlap_thresh',0.5);
 
 %% GUI Parameters
 scrsz = get(0,'ScreenSize'); scrsz=scrsz(3:4);
-whfig = [1000 600]; 
+whfig = [1000 600];
 whunits = 1./[18 20];
 % Units normalized
 whlist1 = [4 18].*whunits;
@@ -40,11 +40,11 @@ fig_pos = [round((scrsz(1)-whfig(1))/2) round((scrsz(2)-whfig(2))/2) whfig];
 list1_pos = [hvspacer whlist1];
 but_pos_0 = [list1_pos(1)+whlist1(1)+hvspacer(1) hvspacer(2)*2.3 whbut(1) whbut(2)*0.75];
 but_pos_1 = [list1_pos(1)+whlist1(1)+hvspacer(1) hvspacer(2)*2 whbut(1) whbut(2)*2];
-but_pos_2 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_1(2)+but_pos_1(4)+hvspacer(2)*0.7 whbut(1) whbut(2)*0.7];
-% but_pos_3 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_2(2)+whbut(2)+hvspacer(2)*0.7 whbut(1) whbut(2)*0.6];
-but_pos_4 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_2(2)+but_pos_2(4)+hvspacer(2)*0.7 whbut];
-but_pos_5 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_4(2)+whbut(2)+hvspacer(2)*0.7 whbut];
-but_pos_6 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_5(2)+whbut(2)+hvspacer(2)*0.7 whbut];
+but_pos_2 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_1(2)+but_pos_1(4)+hvspacer(2)*0.7 whbut(1) whbut(2)*0.8];
+but_pos_3 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_2(2)+but_pos_2(4)+hvspacer(2)*0.2 whbut(1) whbut(2)*0.8];
+but_pos_4 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_3(2)+but_pos_3(4)+hvspacer(2)*0.5 whbut];
+but_pos_5 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_4(2)+whbut(2)+hvspacer(2)*0.5 whbut];
+but_pos_6 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_5(2)+whbut(2)+hvspacer(2)*0.5 whbut];
 but_pos_7 = [list1_pos(1)+whlist1(1)+hvspacer(1) but_pos_6(2)+whbut(2)+hvspacer(2)*0.7 whbut];
 txtlist1_pos_1 = [but_pos_1(1)+whbut(1)+hvspacer(1) hvspacer(2)*1.2+whbutsm(2) whlist2];
 txtlist2_pos_1 = [txtlist1_pos_1(1)+whlist2(1)+hvspacer(1)/20 txtlist1_pos_1(2) whlist3];
@@ -80,7 +80,7 @@ txtlist_6 = uicontrol('parent', mainfig, 'style', 'text','units', 'normalized','
 % but_0 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_0,'string', 'Parameter','FONTSIZE', FONTSIZE-1, 'callback', {@cb_but0_params});
 but_1 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_1,'string', 'Start','FONTSIZE', FONTSIZE+4, 'BackgroundColor', [.6 .6 .6],'callback', {@cb_but1_start});
 but_2 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_2,'string', 'MoCorr','FONTSIZE', FONTSIZE,'BackgroundColor',unsetcol, 'callback', {@cb_but2_mocorr});
-% but_3 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_3,'string', 'Select Ref. File','FONTSIZE', FONTSIZE,'BackgroundColor',unsetcol, 'callback', {@cb_but3_reffile});
+but_3 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_3,'string', 'NO BleachCorr.','FONTSIZE', FONTSIZE,'BackgroundColor',unsetcol, 'callback', {@cb_but3_bleachcorr});
 but_4 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_4,'string', 'Set FrameTime','FONTSIZE', FONTSIZE,'BackgroundColor',unsetcol, 'callback', {@cb_but4_frametime});
 but_5 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_5,'string', 'Set Scale','FONTSIZE', FONTSIZE, 'BackgroundColor',unsetcol,'callback', {@cb_but5_setscale});
 but_6 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized','position', but_pos_6,'string', 'Set BG','FONTSIZE', FONTSIZE,'BackgroundColor',unsetcol, 'callback', {@cb_but6_setbg});
@@ -124,6 +124,7 @@ for iF = 1:NFILES
     FILELIST{iF,1} = filenames{iF}(1:end-4);
     INFOSTRUCT(iF).name = FILELIST{iF};
     INFOSTRUCT(iF).mocorr = false;
+    INFOSTRUCT(iF).bleachcorr = false;
     INFOSTRUCT(iF).refset = NaN;
     INFOSTRUCT(iF).bg_threshold = NaN;
     INFOSTRUCT(iF).frametime_s = NaN;
@@ -137,10 +138,16 @@ pause(0.1);
 end
 
 function cb_but2_mocorr(~,~)
-global INFOSTRUCT SELECTED FONTSIZE but_2
+global INFOSTRUCT SELECTED FONTSIZE but_2 setcol unsetcol
 if ~isempty(SELECTED) && SELECTED(1)  ~= 0
     for iSel = 1:numel(SELECTED)
-        INFOSTRUCT(SELECTED(iSel)).mocorr = true;
+        if ~INFOSTRUCT(SELECTED(iSel)).mocorr
+            INFOSTRUCT(SELECTED(iSel)).mocorr = true;
+            but_2.BackgroundColor = setcol;
+        else
+            INFOSTRUCT(SELECTED(iSel)).mocorr = false;
+            but_2.BackgroundColor = unsetcol;
+        end
     end
     tmppter = find([INFOSTRUCT(:).mocorr] == true);
     mocorrlist = cell(numel(tmppter),1);
@@ -148,14 +155,34 @@ if ~isempty(SELECTED) && SELECTED(1)  ~= 0
     mocorrfig = figure('toolbar', 'none', 'menu', 'none');
     title('Motion Correction');
     uicontrol('parent', mocorrfig, 'style', 'text','units', 'normalized','position', [.05 .05 .9 .8],'string', mocorrlist,'FONTSIZE', FONTSIZE);
-    but_2.BackgroundColor = setcol;
+end
+end
+
+function cb_but3_bleachcorr(~,~)
+global INFOSTRUCT SELECTED FONTSIZE but_3 setcol unsetcol
+if ~isempty(SELECTED) && SELECTED(1)  ~= 0
+    for iSel = 1:numel(SELECTED)
+        if INFOSTRUCT(SELECTED(iSel)).bleachcorr
+            INFOSTRUCT(SELECTED(iSel)).bleachcorr = false;
+            but_3.BackgroundColor = setcol;
+        else
+            INFOSTRUCT(SELECTED(iSel)).bleachcorr = true;
+            but_3.BackgroundColor = unsetcol;
+        end
+    end
+    tmppter = find([INFOSTRUCT(:).bleachcorr] == false);
+    bclist = cell(numel(tmppter),1);
+    for iF = 1:numel(tmppter), bclist{iF,1} = INFOSTRUCT(tmppter(iF)).name; end
+    bcfig = figure('toolbar', 'none', 'menu', 'none');
+    title('Excluded from Bleaching Correction');
+    uicontrol('parent', bcfig, 'style', 'text','units', 'normalized','position', [.05 .05 .9 .8],'string', bclist,'FONTSIZE', FONTSIZE);
 end
 end
 
 function cb_but4_frametime(~,~)
 global INFOSTRUCT SELECTED FTINFO FILELIST but_4 txt_4 txtlist_3 txtlist_4 setcol
 if ~isempty(SELECTED) && SELECTED(1) ~= 0
-    txt_4.String = 'Set Background threshold...';
+    txt_4.String = 'Set frame time...';
     pause(0.1);
     tmp_ft = inputdlg('Enter frame time of selected files in ms:');
     if ~isempty(tmp_ft)
@@ -207,7 +234,7 @@ if ~isempty(SELECTED) && SELECTED(1) ~= 0
         txtlist_5.String = SCALEINFO.txt;
         txtlist_6.String = SCALEINFO.xy_scale;
         pause(0.1);
-        but_5.BackgroundColor = setcol; 
+        but_5.BackgroundColor = setcol;
     end
 else
     txt_4.String = 'SELECT FILE!';
@@ -253,32 +280,29 @@ global INFOSTRUCT FONTSIZE SELECTED
 if SELECTED(1) == 0
     msgbox('Please load files first!');
 else
-checkfig = figure('toolbar', 'none', 'menu', 'none'); axis('off');
-if strcmp(hOb.String,'Check BG')
-    title('Background threshold - MISSING FILES');
-    tmppter = find(isnan([INFOSTRUCT(:).bg_threshold])==1);
-    checklist = cell(numel(tmppter),1);
-    for iF = 1:numel(tmppter), checklist{iF} = INFOSTRUCT(tmppter(iF)).name; end
-elseif strcmp(hOb.String,'Check FT')
-    title('Frametime - MISSING FILES');
-    tmppter = find(isnan([INFOSTRUCT(:).frametime_s])==1);
-    checklist = cell(numel(tmppter),1);
-    for iF = 1:numel(tmppter), checklist{iF} = INFOSTRUCT(tmppter(iF)).name; end
-else
-    title('XY Scale - MISSING FILES');
-    tmppter = find(isnan([INFOSTRUCT(:).xy_scale])==1);
-    checklist = cell(numel(tmppter),1);
-    for iF = 1:numel(tmppter), checklist{iF} = INFOSTRUCT(tmppter(iF)).name; end
+    checkfig = figure('toolbar', 'none', 'menu', 'none'); axis('off');
+    if strcmp(hOb.String,'Check BG')
+        title('Background threshold - MISSING FILES');
+        tmppter = find(isnan([INFOSTRUCT(:).bg_threshold])==1);
+        checklist = cell(numel(tmppter),1);
+        for iF = 1:numel(tmppter), checklist{iF} = INFOSTRUCT(tmppter(iF)).name; end
+    elseif strcmp(hOb.String,'Check FT')
+        title('Frametime - MISSING FILES');
+        tmppter = find(isnan([INFOSTRUCT(:).frametime_s])==1);
+        checklist = cell(numel(tmppter),1);
+        for iF = 1:numel(tmppter), checklist{iF} = INFOSTRUCT(tmppter(iF)).name; end
+    else
+        title('XY Scale - MISSING FILES');
+        tmppter = find(isnan([INFOSTRUCT(:).xy_scale])==1);
+        checklist = cell(numel(tmppter),1);
+        for iF = 1:numel(tmppter), checklist{iF} = INFOSTRUCT(tmppter(iF)).name; end
+    end
+    uicontrol('parent', checkfig, 'style', 'text','units', 'normalized','position', [.05 .05 .9 .8],'string', checklist,'FONTSIZE', FONTSIZE);
 end
-uicontrol('parent', checkfig, 'style', 'text','units', 'normalized','position', [.05 .05 .9 .8],'string', checklist,'FONTSIZE', FONTSIZE);
-end
-end
-
-function cb_but0_params()
 end
 
 function cb_but1_start(~,~)
-global INFOSTRUCT SELECTED PARAMS
+global INFOSTRUCT SELECTED
 if SELECTED == 0
     msgbox('Please load files first!');
 elseif any(isnan([INFOSTRUCT(:).frametime_s]))
@@ -289,10 +313,7 @@ elseif any(isnan([INFOSTRUCT(:).xy_scale]))
     msgbox('There are files without assigned XY scale!');
 else
     close gcf;
-    PARAMS = get_predefined_params('subtract_perc', 0.15,...
-    'connc_px_thresh',5,'perc_thresh',95, 'perc_fac', 1.5, 'overlap_thresh',0.5);
-    run_ROI_detection(INFOSTRUCT, PARAMS);
-    
+    run_ROI_detection(INFOSTRUCT, []);
 end
 end
 

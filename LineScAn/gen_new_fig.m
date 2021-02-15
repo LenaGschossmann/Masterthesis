@@ -1,16 +1,19 @@
 function gen_new_fig()
+% Generates overview of raw, averaged, and dFoF image;
+% the actual plotting of these subplots happens by calling update_fig()
 
 % Declare globally shared variables
-global POSITIONFIG figINFO FIGCOUNTER
+global POSITIONFIG figINFO FIGCNTER
 
-FIGCOUNTER = FIGCOUNTER+1;
+FIGCNTER = FIGCNTER+1;
 figure('Position', POSITIONFIG)
-set(gcf, 'UserData', FIGCOUNTER);
-set(gcf, 'Name', sprintf('Figure #%i', FIGCOUNTER));
+set(gcf, 'UserData', FIGCNTER);
+set(gcf, 'Name', sprintf('Figure #%i', FIGCNTER));
 
-figINFO(FIGCOUNTER).IDs = FIGCOUNTER;
-figINFO(FIGCOUNTER).name = sprintf('Figure #%i', FIGCOUNTER);
-figINFO(FIGCOUNTER).saved = false;
+% Save figure-specific parameters
+figINFO(FIGCNTER).IDs = FIGCNTER;
+figINFO(FIGCNTER).name = sprintf('Figure #%i', FIGCNTER);
+figINFO(FIGCNTER).saved = false;
 update_fig();
 
 end

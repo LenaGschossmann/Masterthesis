@@ -7,9 +7,24 @@ wd = pwd(); p = split(wd,'\'); p = p(1:end-1); pp = []; for ii=1:numel(p), pp = 
 addpath(genpath(pp)), clear('p','pp');
 
 nfiles = size(infostruct,2);
+bleach_corr_win_s = 5;
 t_proc = 600;
 dark_count = [];
 rectype = questdlg('Select type of recording','Recording type','Confocal', '2PM', 'Confocal');
+
+%% Set parameters dependend on recording type if not given as input
+
+if strncmp(rectype,'C',1)
+    if isempty(params)
+        params = get_predefined_params('connc_px_thresh', 12, 'perc_thresh',85, 'perc_fac', 1.2,...
+            'overlap_thresh',0.4, 'fill_thresh',0.3);
+    end
+else
+    if isempty(params)
+        params = get_predefined_params('connc_px_thresh',10,...
+            'perc_thresh',92, 'perc_fac', 1.3,'overlap_thresh',0.4, 'fill_thresh',0.35);
+    end
+end
 
 for iF = 1:nfiles
     roidata = struct();
@@ -25,10 +40,12 @@ for iF = 1:nfiles
     ft_s = infostruct(iF).frametime_s;
     bg_thresh = infostruct(iF).bg_threshold;
     mocorr = infostruct(iF).mocorr;
-    xy_scale = infostruct.xy_scale;
+    bleachcorr = infostruct(iF).bleachcorr;
+    xy_scale = infostruct(iF).xy_scale;
     winsize = round(params.fbase_winsize_s/ft_s);
-%     if xy_scale < 1
-%         params.connc_px_thresh = round(1/xy_scale);
+%     if xy_scale <= 0.5, params.connc_px_thresh = 25;
+%     elseif xy_scale <= 0.8, params.connc_px_thresh = 16;
+%     else, params.connc_px_thresh = 8;
 %     end
     
     %% Import file
@@ -54,8 +71,18 @@ for iF = 1:nfiles
     clear('aip');
     
     %% Bleaching correction
-    disp('Correct bleaching...');
-    corr_traces = bleach_correction(lintraces, n_frames, round(5/ft_s));
+    if bleachcorr
+        disp('Correct bleaching...');
+        corr_traces = bleach_correction(lintraces, n_frames, round(bleach_corr_win_s/ft_s));
+        
+        %     tmpim = uint16(reshape(corr_traces,[imsize(1) imsize(2) n_frames]));
+        %     tmpp = strcat(filepath, '\SM_', infostruct.name, '.tif');
+        %     for idx = 1:n_frames
+        %         imwrite(uint16(tmpim(:,:,idx)), tmpp, 'tiff', 'WriteMode', 'append');
+        %     end
+    else
+        corr_traces = lintraces;
+    end
     
     %% Calculate area information
     fov_area = n_px*xy_scale*xy_scale;
@@ -79,6 +106,15 @@ for iF = 1:nfiles
     disp('Calculate dF over F stack...');
     [~, dFoFtraces] = rollBase_dFoF(corr_traces, winsize,n_frames);
     
+%     %% Obtain threshold value
+%     tic;
+%     perc_range = params.perc_range;
+%     perc_thresh = find_prctl_threshold(dFoFtraces, background, perc_range,params.perc_cutoff,...
+%         params.perc_fac,params.connc_px_thresh,imsize, savepath, filename);
+% %     perc_thresh = max([params.perc_thresh perc_thresh]);
+%     params.perc_thresh = perc_thresh;
+%     toc;
+    
     %% Detect responding px
     disp('Detect responding pixel...');
     resp_thresh = prctile(dFoFtraces,params.perc_thresh,2);
@@ -98,7 +134,10 @@ for iF = 1:nfiles
     % list (2D array indices!)
     all_connc_cell=cell(n_frames,1);
     tic;
-    parfor t =1:n_frames
+    for t = 1:winsize
+         all_connc_cell{t,1} = [];
+    end
+    parfor t = winsize+1:n_frames
         bw=response(:,:,t);
         connc = bwconncomp(bw);
         all_connc_cell{t,1} = connc.PixelIdxList;
@@ -109,7 +148,7 @@ for iF = 1:nfiles
     % pixel (preset threshold)
     tic;
     num_cc_px = 0;
-    for t =1:n_frames
+    for t = winsize+1:n_frames
         conn_px = cellfun(@numel, all_connc_cell{t,1}, 'UniformOutput', false);
         conn_px = cellfun(@(x) x, conn_px);
         connc_cell{t,1} = all_connc_cell{t,1}(conn_px > params.connc_px_thresh);
@@ -124,7 +163,7 @@ for iF = 1:nfiles
     tic;
     roi_idx_mtrx = NaN(num_cc_px,4);
     cnter = 0; cccter=1;
-    for t = 1:numel(connc_frame_id)
+    for t = winsize+1:numel(connc_frame_id)
         ncc = numel(connc_cell{t,1}); % number connected components in this frame
         for cc = 1:ncc
             [r,c] = ind2sub([imsize(1) imsize(2)], connc_cell{t,1}{cc});
@@ -146,7 +185,7 @@ for iF = 1:nfiles
         %     imwrite(response_filled(:,:,idx).*255, fullfile(paths{1},'response_filled.tif'), 'tiff', 'WriteMode', 'append');
         % end
         
-        %% Test overlap between ROIs and merge - in a loop until also combined, filled ROIs dont overlap
+        %% Test overlap between ROIs and merge - in a loop until combined, filled ROIs dont overlap
         disp('Check for overlapping ROIs...');
         % Symmetric matrix with relativ overlap
         overlap_cell = cell(1);
@@ -163,13 +202,13 @@ for iF = 1:nfiles
             roi_ids = unique(tmp_idx_mtrx(:,1));
             tmp_num_cc = n_rois(end);
             overlap_mtrx = zeros(tmp_num_cc, tmp_num_cc);
+            for i = 1:tmp_num_cc, overlap_mtrx(i,i) = 1; end
             
             fprintf('Starts with %i components\n', tmp_num_cc);
             disp('Calculate overlap...');tic;
             for r = 1:tmp_num_cc-1
                 tmpid1 = roi_ids(r);
                 tmpcc1 = tmp_idx_mtrx(tmp_idx_mtrx(:,1) == tmpid1,2:3);
-                overlap_mtrx(r,r) = 1;
                 for c = r+1:tmp_num_cc
                     tmpid2 = roi_ids(c);
                     tmpcc2 = tmp_idx_mtrx(tmp_idx_mtrx(:,1) == tmpid2,2:3);
@@ -217,7 +256,7 @@ for iF = 1:nfiles
                 tmp_idx_mtrx_combined = [];
                 for cc = 1:num_new_cc
                     tmp_px = tmp_idx_mtrx(new_cc_id == cc,:);
-                    [sorted,sortidx] = sortrows(tmp_px, [2 3]);
+                    [sorted,~] = sortrows(tmp_px, [2 3]);
                     sorted = sorted(:,2:3);
                     doubles = find(sum(abs(diff(sorted,1)),2) == 0);
                     tmp_px(doubles,:) = [];
@@ -241,70 +280,78 @@ for iF = 1:nfiles
                 fprintf('Total of %i combined ROIs.\n', num_new_cc);
             else
                 %% Delete left overlapping parts
+                tmp_num_cc = numel(unique(tmp_idx_mtrx(:,1)));
                 for cc = 1:tmp_num_cc
-                    tmp_px = tmp_idx_mtrx(tmp_idx_mtrx(:,1) == cc,:);
-                    del=[];
-                    for ipx = 1:size(tmp_px,1)
-                        del_test = sum(abs(tmp_idx_mtrx(:,2:3)-tmp_px(ipx,2:3)),2);
-                        if any(logical(del_test==0) & logical(tmp_idx_mtrx(:,1)~=cc))
-                            del = [del; find(del_test==0 & tmp_idx_mtrx(:,1)~=cc)];
+                    pter = find(tmp_idx_mtrx(:,1) == cc);
+                    other_px = tmp_idx_mtrx(:,2:3); other_px(pter,:) = NaN;
+                    del = false(size(tmp_idx_mtrx,1),1);
+                    % Find overlapping px
+                    for ipx = 1:numel(pter)
+                        del_test = sum(abs(other_px - tmp_idx_mtrx(pter(ipx),2:3)),2);
+%                         del(del_test==0 & tmp_idx_mtrx(:,1)~=cc) = true;
+                        if any(del_test==0)
+                            del(del_test==0) = true;
+                            del(pter(ipx)) = true;
                         end
                     end
-                    tmp_idx_mtrx(del,:) = [];
+                    % Find component with highest correlation
+                    tmpids = unique(tmp_idx_mtrx(del,1)); % get IDs of overlapping components
+                    if numel(tmpids) > 1
+                        px_lin = sub2ind([imsize(1) imsize(2)],tmp_idx_mtrx(del,2),tmp_idx_mtrx(del,3)); % linear indices of overlapping px
+                        px_lin = sort(px_lin); px_lin(diff(px_lin) == 0) = []; % Delete multiple occurrences
+                        trc_shared = mean(dFoFtraces(px_lin,:),1); % average trace of overlapping px
+                        trc_corr = NaN(numel(tmpids),1);
+                        for cc2 = 1:numel(tmpids) % mean trace of each component sharing overlap (without overlap)
+                            tmpmask = logical(tmp_idx_mtrx(:,1) == tmpids(cc2) & ~del);
+                            px_lin2 = sub2ind([imsize(1) imsize(2)],...
+                                tmp_idx_mtrx(tmpmask,2), tmp_idx_mtrx(tmpmask,3)); % linear indices of overlapping px
+                            tmp_trc = mean(dFoFtraces(px_lin2,:),1);
+                            tmpmask = tmp_trc > 1.5*std(tmp_trc) & trc_shared > 1.5*std(trc_shared);
+                            trc_corr(cc2) = sum(tmp_trc(tmpmask) .* trc_shared(tmpmask));
+                        end
+                        [~,m] = max(trc_corr); tmpids(m) = [];
+                        del2 = false(numel(del),1);
+                        for cc2 = 1:numel(tmpids)
+                            del2(del & tmp_idx_mtrx(:,1) == tmpids(cc2),:) = true;
+                            if sum(tmp_idx_mtrx(:,1) == tmpids(cc2)) <= params.connc_px_thresh
+                                del2(tmp_idx_mtrx(:,1) == tmpids(cc2),:) = [];
+                            end
+                        end
+                        tmp_idx_mtrx(del2,:) = [];
+                    end
                 end
+                
+                % Fill gaps for the last time
+                tic;
+                tmp_idx_mtrx = fill_roi_gaps(imsize, tmp_idx_mtrx, [2 3], numel(unique(tmp_idx_mtrx(:,1))),params.fill_thresh);
+                toc
+                
                 roi_idx_cell{rndcnt,1} = tmp_idx_mtrx;
                 roi_idx_cell{rndcnt,2} = tmp_idx_mtrx(:,1);
                 
                 roi_ids1= unique(roi_idx_cell{1,2});
-                roi_ids2 = unique(tmp_idx_mtrx(:,1));
-                pter = roi_idx_cell{rndcnt,1}(:,1);
+                roi_ids2 = unique(roi_idx_cell{end,2});
+                pter = roi_idx_cell{1,2};
                 for iID = 1:numel(roi_ids1)
                     if all(~(roi_ids1(iID) == roi_ids2))
-                        roi_idx_cell{rndcnt,1}(pter == roi_ids1(iID)) = [];
-                        roi_idx_cell{1,2}(pter == roi_ids1(iID),:) = [];
-                        pter(pter == roi_ids1(iID),:) = [];
+                        roi_idx_cell{1,2}(pter == roi_ids1(iID)) = NaN;
                     end
                 end
+                % Sort ROIs new
+                new_roi_ids = NaN(size(tmp_idx_mtrx,1),1);
+                new_ori_ids =  NaN(size(roi_idx_cell{1,2},1),1);
+                for iNum = 1:numel(roi_ids2)
+                    new_roi_ids(tmp_idx_mtrx(:,1) == roi_ids2(iNum)) = iNum;
+                    new_ori_ids(roi_idx_cell{1,2}(:,1) == roi_ids2(iNum)) = iNum;
+                end
+                
+                roi_idx_cell{end,1}(:,1) = new_roi_ids;
+                roi_idx_cell{1,2} = new_ori_ids;
+                
+                n_rois(rndcnt) = numel(unique(roi_idx_cell{rndcnt,2}));
                 combine_more = false;
             end
         end
-        
-        %% Extract ROI boundaries - combined ROIs
-        disp('Find ROI boundaries...');tic;
-        num_cc = n_rois(end);
-        bounds_cell_comb = cell(num_cc,2);
-        cnt=1; cc=1;
-        idx_mtrx = roi_idx_cell{end,1};
-        while cc <= num_cc
-            cc_px = idx_mtrx(idx_mtrx(:,1) == cc,2:3);
-            bw = zeros(imsize(1),imsize(2),1);
-            for ipx = 1:size(cc_px,1), bw(cc_px(ipx,1), cc_px(ipx,2)) = 1; end
-            [B,~] = bwboundaries(bw,8,'noholes');  % Find boundary
-            bounds_cell_comb{cnt,1} = B;
-            bounds_cell_comb{cnt,2} = cc;
-            cnt = cnt+1;
-            cc = cc+1;
-        end
-        bounds_cell_comb = bounds_cell_comb(1:cnt-1,:);
-        toc
-        
-        %% Extract traces
-        disp('Extract average ROI traces...');
-        tic;
-        num_cc = n_rois(end);
-        roi_av_traces = NaN(num_cc,n_frames);
-        roi_av_FoF_traces = NaN(num_cc,n_frames);
-        roi_av_dFoF_traces = NaN(num_cc,n_frames);
-        idx_mtrx = roi_idx_cell{end,1};
-        for cc = 1:num_cc
-            cc_px = idx_mtrx(idx_mtrx(:,1) == cc,2:3);
-            px_lin = sub2ind([imsize(1) imsize(2)],cc_px(:,1),cc_px(:,2));
-            roi_av_traces(cc,:) = mean(corr_traces(px_lin,:),1);
-            roi_av_dFoF_traces(cc,:) = mean(dFoFtraces(px_lin,:),1);
-            av = mean(roi_av_traces(cc,:));
-            roi_av_FoF_traces(cc,:) = roi_av_traces(cc,:)./ av;
-        end
-        toc
         
         %% Extract ROI area and centroids
         disp('Extract ROI area and centroids...');
@@ -321,6 +368,63 @@ for iF = 1:nfiles
         end
         toc
         
+        %% Sort ROIs by distance to origin
+        dist_info = sqrt(roi_xy_center_um(:,1).^2 + roi_xy_center_um(:,2).^2);
+        [~, sorted_id] = sort(dist_info, 'ascend');
+        % Apply sorting
+        roi_area_um = roi_area_um(sorted_id,:);
+        roi_xy_center_um = roi_xy_center_um(sorted_id,:);
+        
+        sorted_roi_info = roi_idx_cell{end,1};
+        new_id = NaN(size(sorted_roi_info,1),1);
+        sorted_ori_id = NaN(size(roi_idx_cell{1,2},1),1);
+        for cc = 1:num_cc
+            new_id(sorted_roi_info(:,1) == sorted_id(cc),1) = cc;
+            sorted_ori_id(roi_idx_cell{1,2}==sorted_id(cc)) = cc;
+        end
+        sorted_roi_info(:,1) = new_id; clear('new_id');
+        [~, sorted] = sort(sorted_roi_info(:,1),'ascend');
+        sorted_roi_info = sorted_roi_info(sorted,:);
+        
+        %% Extract ROI boundaries - combined ROIs
+        disp('Find ROI boundaries...');tic;
+        num_cc = n_rois(end);
+        bounds_cell_comb = cell(num_cc,2);
+        cnt=1; cc=1;
+        idx_mtrx = sorted_roi_info;
+        while cc <= num_cc
+            cc_px = idx_mtrx(idx_mtrx(:,1) == cc,2:3);
+            bw = zeros(imsize(1),imsize(2),1);
+            for ipx = 1:size(cc_px,1), bw(cc_px(ipx,1), cc_px(ipx,2)) = 1; end
+            [B,~] = bwboundaries(bw,8,'noholes');  % Find boundary
+            bounds_cell_comb{cnt,1} = B;
+            % Color as indicator of number of individual components
+            bounds_cell_comb{cnt,2} = numel(unique(roi_idx_cell{1,1}(sorted_ori_id == cc,1)));
+%             bounds_cell_comb{cnt,2} = cc;
+            cnt = cnt+1;
+            cc = cc+1;
+        end
+        bounds_cell_comb = bounds_cell_comb(1:cnt-1,:);
+        toc
+        
+        %% Extract traces
+        disp('Extract average ROI traces...');
+        tic;
+        num_cc = n_rois(end);
+        roi_av_traces = NaN(num_cc,n_frames);
+        roi_av_FoF_traces = NaN(num_cc,n_frames);
+        roi_av_dFoF_traces = NaN(num_cc,n_frames);
+        idx_mtrx = sorted_roi_info;
+        for cc = 1:num_cc
+            cc_px = idx_mtrx(idx_mtrx(:,1) == cc,2:3);
+            px_lin = sub2ind([imsize(1) imsize(2)],cc_px(:,1),cc_px(:,2));
+            roi_av_traces(cc,:) = mean(corr_traces(px_lin,:),1);
+            roi_av_dFoF_traces(cc,:) = mean(dFoFtraces(px_lin,:),1);
+            av = mean(roi_av_traces(cc,:));
+            roi_av_FoF_traces(cc,:) = roi_av_traces(cc,:)./ av;
+        end
+        toc
+        
         %% AIP & MIP Projection
         corr_aip = reshape(mean(corr_traces,2),[imsize(1) imsize(2)]);
         tmpmin = min(corr_aip,[],'all');
@@ -332,25 +436,27 @@ for iF = 1:nfiles
         uint16_mip = (uint16_mip./tmpmax).*(2^8);
         clear('tmpmin','tmpmax');
         
-        % Save overview of all ROIs using AIP
-        disp('Save overview...');
-        cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],n_rois(end));
+%         % Save overview of all ROIs using AIP
         scrsz = get(0,'ScreenSize');
-        ovwfig_aip = figure('Position', [0 0 scrsz(3:4)], 'PaperSize', scrsz(3:4));
-        imagesc(uint16_aip);colormap('gray');axis('off');daspect([1 1 1]);
-        for cc = 1:num_cc
-            B = bounds_cell_comb{cc,1};
-            hold on
-            for k = 1:length(B)
-                boundary = B{k};
-                plot(boundary(:,2), boundary(:,1), 'Color',cmap(:,bounds_cell_comb{cc,2})', 'LineWidth', 1)
-            end
-        end
-        outputname = strcat(savepath,'\ROIs_AIP_',filename,'.png');
-        if isa(outputname,'cell'), outputname= outputname{1}; end
-        saveas(ovwfig_aip, outputname);
-        pause(0.3);
-        close gcf;
+        red=[1 0 1]; green=[0 1 1]; blue=[0 .7 1];
+        cmap_n = max(cellfun(@max, bounds_cell_comb(:,2)));
+        cmap = get_colormap(red,green,blue,cmap_n);
+%         disp('Save overview...');
+%         ovwfig_aip = figure('Position', [0 0 scrsz(3:4)], 'PaperSize', scrsz(3:4));
+%         imagesc(uint16_aip);colormap('gray');axis('off');daspect([1 1 1]);
+%         for cc = 1:num_cc
+%             B = bounds_cell_comb{cc,1};
+%             hold on
+%             for k = 1:length(B)
+%                 boundary = B{k};
+%                 plot(boundary(:,2), boundary(:,1), 'Color',cmap(:,bounds_cell_comb{cc,2})', 'LineWidth', 1)
+%             end
+%         end
+%         outputname = strcat(savepath,'\ROIs_AIP_',filename,'.png');
+%         if isa(outputname,'cell'), outputname= outputname{1}; end
+%         saveas(ovwfig_aip, outputname);
+%         pause(0.3);
+%         close gcf;
         
         % Save overview of all ROIs using MIP
         ovwfig_mip = figure('Position', [0 0 scrsz(3:4)], 'PaperSize', scrsz(3:4));
@@ -369,6 +475,12 @@ for iF = 1:nfiles
         pause(0.3);
         close gcf;
         
+%         ccmask = false(imsize(1), imsize(2));
+%         for ipx = 1:size(sorted_roi_info,1)
+%             ccmask(sorted_roi_info(ipx,2), sorted_roi_info(ipx,3)) = true;
+%         end
+%         figure, imagesc(ccmask*255);
+            
         %% Pack information and save
         disp('Save information...');
         roidata.filepath = filepointer;
@@ -382,9 +494,9 @@ for iF = 1:nfiles
         roidata.mip = corr_mip;
         roidata.background_mask = background;
         roidata.response_threshold = resp_thresh;
-        roidata.dendritic_area = dend_area;
-        roidata.background_area = bg_area;
-        roidata.fov_area = fov_area;
+        roidata.dendritic_area_um = dend_area;
+        roidata.background_area_um = bg_area;
+        roidata.fov_area_um = fov_area;
         roidata.roi_bounds = bounds_cell_comb;
         roidata.roi_idx = roi_idx_cell{end,1};
         roidata.original_roi_idx = roi_idx_cell{1,1};
@@ -393,7 +505,7 @@ for iF = 1:nfiles
         roidata.dFoF_traces = roi_av_dFoF_traces;
         roidata.FoF_traces = roi_av_FoF_traces;
         roidata.traces = roi_av_traces;
-        roidata.roi_centroids = roi_xy_center_um;
+        roidata.roi_centroids_um = roi_xy_center_um;
         roidata.roi_area_um = roi_area_um;
         
         outputname = strcat(savepath,'\ROIdata_',filename,'.mat');
@@ -418,10 +530,19 @@ for iF = 1:nfiles
         roidata.mip = corr_mip;
         roidata.background_mask = background;
         roidata.response_threshold = resp_thresh;
-        roidata.dendritic_area = dend_area;
-        roidata.background_area = bg_area;
+        roidata.dendritic_area_um = dend_area;
+        roidata.background_area_um = bg_area;
         roidata.fov_area = fov_area;
         roidata.n_rois = 0;
+        roidata.roi_bounds = [];
+        roidata.roi_idx = [];
+        roidata.original_roi_idx = [];
+        roidata.n_original_rois = [];
+        roidata.dFoF_traces = [];
+        roidata.FoF_traces = [];
+        roidata.traces = [];
+        roidata.roi_centroids_um = [];
+        roidata.roi_area_um = [];
         outputname = strcat(savepath,'\0_ROIDATA_',filename,'.mat');
         if isa(outputname,'cell'), outputname= outputname{1}; end
         save(outputname,'roidata');

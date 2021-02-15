@@ -30,7 +30,7 @@ but3_pos = [350 0 40 30];
 bg_fig = figure('toolbar', 'none', 'menu', 'none');
 ctrl_fig = figure('Position', ctrl_pos_2,'toolbar', 'none', 'menu', 'none');
 sl = uicontrol('Style','slider','Min',val_mtrx(cf,2),'Max',val_mtrx(cf,3),...
-    'SliderStep',[1 1]./val_mtrx(cf,3),'Value',val_mtrx(cf,1), 'Position', sl_pos, 'Callback', {@sl_cb, bg_fig});
+    'SliderStep',[1 1]./100,'Value',val_mtrx(cf,1), 'Position', sl_pos, 'Callback', {@sl_cb, bg_fig});
 but1 = uicontrol('parent', ctrl_fig, 'style','pushbutton', 'Position', but1_pos, 'String', '<-', 'Callback', {@but12_cb});
 but2 = uicontrol('parent', ctrl_fig, 'style','pushbutton', 'Position', but2_pos, 'String', '->', 'Callback', {@but12_cb});
 but3 = uicontrol('parent', ctrl_fig, 'style','pushbutton', 'Position', but3_pos, 'String', 'OK', 'Callback', {@but3_cb});

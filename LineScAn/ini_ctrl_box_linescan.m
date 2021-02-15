@@ -3,8 +3,8 @@ function ini_ctrl_box_linescan()
 % Declare globally shared variables
 global SCRSZ FNAME FONTSIZE SCMAPDDITEMS SCMAP WINSZDDITEMS WINSZ...
     PLOTRANGE CLIMUI THRESHOLDTYPE THRESHOLD PEAKTHRESHOLD SMTHWIN...
-    figINFO roiINFO traceINFO FTIME...
-    CURRFILE NUMFILES SAVEPARENT FULLFILENAMES IMMETA IMHW FIGCOUNTER ROICNTID
+    figINFO roiINFO traceINFO FTIME CURRFILE NUMFILES SAVEPARENT...
+    FULLFILENAMES IMMETA IMHW
 
 % Initiate (display) variables
 whctrl = [430 480];
@@ -21,11 +21,11 @@ whrb = [60 20];
 
 % Display positions
 positionctrl = [SCRSZ(1)-round(1.5*whctrl(1)) round(SCRSZ(2)/2-0.5*whctrl(2)) whctrl];
-deltrcbutpos = [hctr-whbutsm(1)*2-hspace(1)*2 vspace(2) whbutsm];
-showtrcbutpos = [hctr-whbutsm(1)-hspace(1) deltrcbutpos(2) whbutsm];
-savengobutpos = [hctr+hspace(1) deltrcbutpos(2) whbutsm];
-nosavengobutpos = [hctr+whbutsm(1)+hspace(1)*2 deltrcbutpos(2) whbutsm];
-threshtxtpos = [hspace(2) deltrcbutpos(2)+whbutbg(2)+vspace(1) whtxt];
+delroibutpos = [hctr-whbutsm(1)*2-hspace(1)*2 vspace(2) whbutsm];
+showtrcbutpos = [hctr-whbutsm(1)-hspace(1) delroibutpos(2) whbutsm];
+savengobutpos = [hctr+hspace(1) delroibutpos(2) whbutsm];
+nosavengobutpos = [hctr+whbutsm(1)+hspace(1)*2 delroibutpos(2) whbutsm];
+threshtxtpos = [hspace(2) delroibutpos(2)+whbutbg(2)+vspace(1) whtxt];
 threshinpos = [hctr+hspace(2) threshtxtpos(2) whin];
 peakinpos = [threshinpos(1)+whin(1)+hspace(1) threshtxtpos(2) whin];
 threshtypetxtpos = [hspace(2) peakinpos(2)+whin(2)+vspace(1) whtxt];
@@ -57,7 +57,7 @@ set(gca, 'Color', 'none'); axis off;
 title('Control Box', 'FontSize', round(FONTSIZE*1.3));
 
 % Add UI controls
-deltrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', deltrcbutpos,'string', 'Delete ROI','FONTSIZE', FONTSIZE, 'callback', {@cb_deltrcbut});
+delroibut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', delroibutpos,'string', 'Delete ROI','FONTSIZE', FONTSIZE, 'callback', {@cb_delroibut});
 showtrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', showtrcbutpos,'string', 'Show traces','FONTSIZE', FONTSIZE, 'callback', {@cb_showtrcbut});
 savengobut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', savengobutpos,'string', 'Save & Go','FONTSIZE', FONTSIZE, 'callback', {@cb_savengobut});
 nosavengobut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', nosavengobutpos,'string', 'No Save & Go','FONTSIZE', FONTSIZE, 'callback', {@cb_nosavengobut});
@@ -88,7 +88,7 @@ scmapdd = uicontrol('parent', ctrlfig, 'style', 'popupmenu','position', scmapddp
 winsztxt = uicontrol('parent', ctrlfig, 'style', 'text','position', winsztxtpos,'string', 'Select averaging window size:','FONTSIZE', FONTSIZE);
 winszdd = uicontrol('parent', ctrlfig, 'style', 'popupmenu','position', winszddpos,'FONTSIZE', FONTSIZE, 'string', WINSZDDITEMS, 'Callback', {@cb_winszdd});
 
-rangetxt = uicontrol('parent', ctrlfig, 'style', 'text','position', rangetxtpos,'string', 'Set plot samplepoint range:','FONTSIZE', FONTSIZE);
+rangetxt = uicontrol('parent', ctrlfig, 'style', 'text','position', rangetxtpos,'string', 'Set range in frames:','FONTSIZE', FONTSIZE);
 rangein1 = uicontrol('parent', ctrlfig, 'style', 'edit','position', rangeinpos(1,:),'FONTSIZE', FONTSIZE, 'String', num2str(PLOTRANGE(1)),'Callback', {@cb_rangein1});
 rangein2 = uicontrol('parent', ctrlfig, 'style', 'edit','position', rangeinpos(2,:),'FONTSIZE', FONTSIZE, 'String', num2str(PLOTRANGE(2)),'Callback', {@cb_rangein2});
 
@@ -100,7 +100,7 @@ uiwait;
 
 %% Local callbacks
     function cb_openbut(~,~)
-        [filenames, pathnames] = uigetfile({'*.nd2'; '*.tif'}, 'Multiselect', 'on'); % Select (multiple) files for processing
+        [filenames, pathnames] = uigetfile({'*.nd2'; '*.tif'}, 'Multiselect', 'off'); % Select (multiple) files for processing
         if isa(filenames,'cell') || isa(filenames,'char')
             if ~isa(filenames,'cell'), filenames = {filenames}; end
             if isempty(SAVEPARENT), SAVEPARENT = uigetdir(pathnames, 'Parent folder for saving'); end % Select path for parent folder of saved files
@@ -126,7 +126,10 @@ uiwait;
     end
 
     function cb_updatebut(~,~)
-        update_fig();
+        figures = get(groot,'Children');
+        if numel(figures) == 1, gen_new_fig();
+        else, update_fig();
+        end
     end
 
     function cb_newbut(~,~)
@@ -198,7 +201,7 @@ uiwait;
     end
 
 
-    function cb_deltrcbut(~,~)
+    function cb_delroibut(~,~)
         if sum([roiINFO(:).selected]) == 0 || isempty(roiINFO(1).position)
             msgbox('You have to select a ROI first!');
         else
@@ -225,8 +228,12 @@ uiwait;
             figures = get(groot,'Children');
             tmpfig = figures(strncmp({figures(:).Name}, 'Line',4));
             roilb = findobj(tmpfig, 'type', 'uicontrol', 'style', 'listbox');
-            if isempty(roiINFO(1).name), set(roilb, 'Value', 1); set(roilb, 'string', '');
-            else, set(roilb, 'Value',1); set(roilb, 'string', {roiINFO(:).name});
+            if isempty(roiINFO(1).name)
+                set(roilb, 'Value', 1); set(roilb, 'string', '');
+            else
+                set(roilb, 'Value',1);
+                set(roilb, 'string', {roiINFO(:).name});
+                set(roilb, 'max',numel({roiINFO(:).name}));
             end
             update_fig();
             [~,closeidx] = find(strncmp({figures(:).Name},'ROI',3)==1);
@@ -274,11 +281,6 @@ uiwait;
                 open_file(filepointer, rangein1, rangein2);
             end
         end
-        roiINFO = struct(); roiINFO(1).name = []; roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
-        figINFO = struct('IDs', [], 'name', [], 'PLOTRANGE',[], 'cSCMAP',[], 'csclimits', [], 'avwinsize',[], 'saved',[]);
-        traceINFO = struct('figID',[], 'fig_params',[],'roiID',[], 'binned_roi_av',[],'dFoF_roi_av',[], 'timestamp',[], 'save',[], 'currmode',[], 'showtot', []);
-        FIGCOUNTER = 0;
-        ROICNTID = 1;
     end
 
     function cb_nosavengobut(~,~)
@@ -310,11 +312,8 @@ uiwait;
                 open_file(filepointer, rangein1, rangein2);
             end
         end
-        roiINFO = struct(); roiINFO(1).name = []; roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
-        figINFO = struct('IDs', [], 'name', [], 'PLOTRANGE',[], 'cSCMAP',[], 'csclimits', [], 'avwinsize',[], 'saved',[]);
-        traceINFO = struct('figID',[], 'fig_params',[],'roiID',[], 'binned_roi_av',[],'dFoF_roi_av',[], 'timestamp',[], 'save',[], 'currmode',[], 'showtot', []);
-        FIGCOUNTER = 0;
-        ROICNTID = 1;
     end
+
+
 
 end

@@ -1,4 +1,4 @@
-function [roivals,roidFoF, yrange, avvals, alldFoF] = calc_roi_av_trace(roiidx, vals, pr)
+function [roivals, roidFoF, yrange, avvals, alldFoF] = calc_roi_av_trace(roiidx, vals, pr)
 
 % Declare globally shared variables
 global roiINFO
@@ -32,8 +32,8 @@ if ~skip
     % Av values
     roivals = avvals(pr(1)+ymin-1:pr(1)+ymax-1,1);
     % dFoF
-    roidFoF = (roivals-av)/av;
-    alldFoF = (avvals-av)/av;
+    [~, roidFoF] = rollBase_dFoF(roivals);
+    [~, alldFoF] = rollBase_dFoF(avvals);
     yrange = [ymin ymax];
 else
     roivals = []; roidFoF = []; alldFoF = []; yrange = [];

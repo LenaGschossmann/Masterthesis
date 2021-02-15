@@ -1,6 +1,10 @@
-function [dFtraces, dFoFtraces] = rollBase_dFoF(lintraces,winsize,n_frames)
+function [dFtraces, dFoFtraces] = rollBase_dFoF(input)
 %% Calculation of a rolling baseline dFoF stack
-lintraces = double(lintraces);
+global dFWIN FTIME
+
+winsize = round(dFWIN/FTIME);
+lintraces = double(input)';
+n_frames = size(lintraces,2);
 avtraces = lintraces;
 avsteps = NaN(n_frames,2);
 avsteps(1:winsize+1,1) = 1; avsteps(1:winsize+1,2) = winsize;
@@ -12,9 +16,10 @@ for iAv = 1:n_frames
 end
 
 dFtraces = lintraces-avtraces;
-% px_av_val = mean(lintraces,2);
-px_av_val = mean(lintraces,'all');
+px_av_val = mean(lintraces,2);
 dFoFtraces = dFtraces./px_av_val;
 
+dFtraces = dFtraces';
+dFoFtraces = dFoFtraces';
 
 end

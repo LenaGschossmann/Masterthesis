@@ -26,7 +26,7 @@ whunits = 1./[12 12];
 whbut3 = [2 1].*whunits;
 % whtxt = [];
 whtrcsp = [10 7].*whunits;
-whhistsp = [3 2].*whunits;
+whhistsp = [2 1.5].*whunits;
 hvspace3 = [1 1].*whunits;
 
 trccol1 = [0.6510 0.0667 0.2784];
@@ -38,7 +38,9 @@ but3_pos_1 = [hvspace3(1)*3 hvspace3(2) whbut3];
 but3_pos_2 = [but3_pos_1(1)+but3_pos_1(3)+0.5*hvspace3(1) hvspace3(2) whbut3];
 but3_pos_3 = [but3_pos_2(1)+but3_pos_2(3)+0.5*hvspace3(1) hvspace3(2) whbut3];
 trcsp_pos = [hvspace3(1)*1.25 but3_pos_1(2)+but3_pos_1(4)+2*hvspace3(2) whtrcsp];
-hist_pos = [trcsp_pos(1)+trcsp_pos(3)*0.65 trcsp_pos(2)+0.68*trcsp_pos(4) whhistsp];
+hist_pos = [trcsp_pos(1)+trcsp_pos(3)*0.62 trcsp_pos(2)+0.72*trcsp_pos(4) whhistsp];
+leg_pos = [.82 .75 0.1 .1];
+an_pos = [.82 .8 .1 .1];
 
 revfig = figure('Name', 'Event revision', 'Position', fig3_pos, 'toolbar', 'none', 'menu', 'none'); axis off;
 set(revfig,'WindowKeyPressFcn',@keyPressCallback);
@@ -127,7 +129,7 @@ end
         figure(revfig);
         subplot('Position', trcsp_pos);
         cla;
-        if isempty(an), an = annotation('textbox', [.85 .8 .1 .1], 'FitBoxToText','on','EdgeColor', [1 1 1],'fontsize', fontsize); end
+        if isempty(an), an = annotation('textbox', an_pos, 'FitBoxToText','on','EdgeColor', [1 1 1],'fontsize', fontsize); end
         for iE = 1:num_save
             p = plot(xpoints,save_croptrc(iE,:),'linewidth', 1, 'color', trccol1); p.Color(4) = .25;
             hold on;
@@ -135,8 +137,7 @@ end
         if currev > 1
             plotidx = find(keepev(1:currev-1) == true);
             for iE = 1:numel(plotidx)
-                p = plot(xpoints,rev_croptrc(plotidx(iE),:),'linewidth', 1, 'color', trccol1); p.Color(4) = .25;
-                hold on;
+                hold on; p = plot(xpoints,rev_croptrc(plotidx(iE),:),'linewidth', 1, 'color', trccol1); p.Color(4) = .25;
             end
         end
         
@@ -157,12 +158,14 @@ end
         xlabel('time [ms]'); ylabel('dF/F');set(gca,'FontSize',8); 
         yrange = [min([rev_croptrc;save_croptrc], [], 'all') max([rev_croptrc;save_croptrc], [], 'all')];
         ylim([yrange(1)-diff(yrange)/10 yrange(2)+diff(yrange)/10]);
-
+        hold off;
         histax = axes('Position', hist_pos);
         histogram(histax,rand_amps,'BinEdges', binedges,'Normalization', 'Probability', 'FACEALPHA',.5, 'FaceColor',[.4 .61 .86]);
         hold on, histogram(histax,neg_amps,'BinEdges', binedges,'Normalization', 'Probability', 'FACEALPHA',.5, 'FaceColor',[.4 .86 .58]);
-        hold on,histogram(histax, rev_croptrc(currev,prepts+1),'BinEdges', binedges,'Normalization', 'Probability', 'FACEALPHA',.5,'FaceColor',[1 .57 .28]);
+        hold on,histogram(histax, max(rev_croptrc(currev,:)),'BinEdges', binedges,'Normalization', 'Probability', 'FACEALPHA',.5,'FaceColor',[1 .57 .28]);
+        leg=legend('rnd', 'neg','curr'); set(leg,'units','normalized','Box', false,'Orientation','vertical','Position',leg_pos, 'FontSize', 5);
         set(histax,'ytick',[]); set(histax,'ycolor',[1 1 1]); set(histax,'box','off');
+        hold off;
     end
 
     function cb_backbut(~,~)

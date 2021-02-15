@@ -13,7 +13,7 @@ function [events, tmpdftrace] = detect_events(worktraces, seltrace)
 
 %% Declare globally shared variables
 global PLOTPEAKS THRESHOLDTYPE THRESHOLD PEAKTHRESHOLD SMTHWIN FTIME...
-    RANGE TOTP evINFO BASEPOINTS PREPOINTS POSTPOINTS
+    RANGE TOTP events BASEPOINTS PREPOINTS POSTPOINTS
 
 %% Initialize variables
 if strcmp(THRESHOLDTYPE, 'dF'), mode = 1; else, mode = 0; end
@@ -117,31 +117,31 @@ for iTr = 1:size(worktraces,2)
     
     % Save information in struct
     x = seltrace(iTr);
-    evINFO(x).rangein = RANGE(1);
-    evINFO(x).rangeout = RANGE(2);
-    evINFO(x).ftime = FTIME;
-    evINFO(x).smthwin = SMTHWIN;
-    evINFO(x).baseframes = BASEPOINTS;
-    evINFO(x).baselinevalues = baselinevals;
-    evINFO(x).average = avtraces(iTr);
-    evINFO(x).sd = sdtraces(iTr);
-    evINFO(x).thresholdtype = THRESHOLDTYPE; 
-    evINFO(x).threshold = trcthreshold;
-    evINFO(x).peakthreshold = trcpkthreshold;
-    evINFO(x).binarycross = crossing;
-    evINFO(x).binarypeaks = peaks;
-    evINFO(x).crossidx = crossidx;
-    evINFO(x).peakidx = peakidx;
-    evINFO(x).amps = amps;
-    evINFO(x).amps_dFoF = dFoF_amps;
-    evINFO(x).avamp = mean(amps);
-    evINFO(x).avamp_dFoF = mean(dFoF_amps);
-    evINFO(x).ieis = ieis;
-    evINFO(x).aviei = mean(ieis);
-    evINFO(x).cviei = cviei;
-    evINFO(x).eventratetype = 'IEI based';
-    evINFO(x).eventrate = eventrate;
-    evINFO(x).risetimes = risetime;
-    evINFO(x).decaytimes = decaytime;
+    events(x).rangein = RANGE(1);
+    events(x).rangeout = RANGE(2);
+    events(x).ftime = FTIME;
+    events(x).smthwin = SMTHWIN;
+    events(x).baseframes = BASEPOINTS;
+    events(x).baselinevalues = baselinevals;
+    events(x).average = avtraces(iTr);
+    events(x).sd = sdtraces(iTr);
+    events(x).thresholdtype = THRESHOLDTYPE; 
+    events(x).threshold = trcthreshold;
+    events(x).peakthreshold = trcpkthreshold;
+    events(x).binarycross = crossing;
+    events(x).binarypeaks = peaks;
+    events(x).crossidx = crossidx;
+    events(x).peakidx = peakidx;
+    events(x).amps = amps;
+    events(x).amps_dFoF = dFoF_amps;
+    events(x).avamp = mean(amps);
+    events(x).avamp_dFoF = mean(dFoF_amps);
+    events(x).ieis = ieis;
+    events(x).aviei = mean(ieis);
+    events(x).cviei = cviei;
+    events(x).eventratetype = 'IEI based';
+    events(x).eventrate = eventrate;
+    events(x).risetimes = risetime;
+    events(x).decaytimes = decaytime;
 end
 end

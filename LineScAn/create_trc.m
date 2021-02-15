@@ -16,7 +16,7 @@ traceINFO(tmpidx).currmode = '  Average';
 traceINFO(tmpidx).showtot = 0;
 % Call Analysis functions
 averaged = average_linescan(COMPOSITE2D, wsz);
-markedroi = uint8(averaged(pr(1):pr(2),:));
+markedroi = averaged(pr(1):pr(2),:);
 scmarkedroi = mark_rois(markedroi,pr, roiidx(iRoi));
 %         scmarkedroi = scale_data(markedroi, climraw);
 [tmpvals,tmpdFoF, yrange, allvals, alldFoF] = calc_roi_av_trace(roiidx(iRoi), averaged, pr);
@@ -42,8 +42,8 @@ if roiINFO(roiidx(iRoi)).mode == 1
     traceINFO(tmpidx).tot_dFoF_roi_av = {alldFoF};
     traceINFO(tmpidx).tot_timestamp = {(1*FTIME:FTIME:IMHW(1)*FTIME)'};
     % Extract trace parameters
-    [events, smoothed] = get_trc_params(allvals,[],[],[]);
-    traceINFO(tmpidx).tot_events = events;
+    [~, smoothed] = get_trc_params(allvals,[],[],[]);
+%     traceINFO(tmpidx).tot_events = events;
     traceINFO(tmpidx).tot_smoothed = {smoothed};
 end
 end

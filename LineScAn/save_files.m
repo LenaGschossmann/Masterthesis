@@ -20,7 +20,7 @@ if ~figINFO(fi).saved
     if strcmp(answer, 'Yes')
         % Save ROI-unrelated stuff
         averaged = average_linescan(COMPOSITE2D, wsz);
-        dFoF = deltaFovF_linescan(averaged);
+        [~, dFoF] = rollBase_dFoF(averaged);
 %         % .csv
 %         set(diatxt,'string',[diatxtinfo,{'','...create .csv files.'}]);
 %         pause(0.2);
@@ -30,10 +30,10 @@ if ~figINFO(fi).saved
         % .tifs
         set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
         pause(0.2);
-        vals = uint8(COMPOSITE2D(pr(1):pr(2),:));
-        imwrite(vals, strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        vals = uint8(averaged(pr(1):pr(2),:));
-        imwrite(vals, strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
+        vals = COMPOSITE2D(pr(1):pr(2),:);
+        imwrite(uint16(vals), strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
+        vals = averaged(pr(1):pr(2),:);
+        imwrite(uint16(vals), strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
         vals = dFoF(pr(1):pr(2),:);
         tic
         writematrix(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.csv'));
@@ -96,7 +96,7 @@ for iRoi = 1:numel(saverois)
     pause(0.2);
     if ~trcexists(iRoi)
         if isline(iRoi), tmppr = [1 IMHW(1)]; else, tmppr = pr; end
-        val = uint8(averaged(tmppr(1):tmppr(2),:));
+        val = averaged(tmppr(1):tmppr(2),:);
         scmarkedroi = mark_rois(val,tmppr, saverois(iRoi));
         [avvals,dFoFvals,yrange,allvals,~] = calc_roi_av_trace(saverois(iRoi), averaged, tmppr);
         [evinfo, smoothed] = get_trc_params(allvals,[tmppr(1)+yrange(1)-1 tmppr(1)+yrange(2)-1], [],[]);
@@ -128,7 +128,7 @@ for iRoi = 1:numel(saverois)
     end
     writeMtrx = [timestamp avvals smoothed dFoFvals supraT crossings peaks];
     writeMtrx = array2table(writeMtrx, 'VariableNames', {'frametime_s', 'ROI_average', 'ROI_smth_average','ROI_dFoF', 'threshold_binary','crossing_binary', 'peak_binary'});
-    imwrite(scmarkedroi, strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
+    imwrite(uint16(scmarkedroi), strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
     writetable(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'_values_binning_', num2str(wsz), '_smth_', num2str(SMTHWIN), '_thresh_', num2str(THRESHOLD),'_threshpk_', num2str(PEAKTHRESHOLD),'.csv'));
     
     % Save event info as table

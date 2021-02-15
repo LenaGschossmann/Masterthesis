@@ -39,7 +39,15 @@ for cc = 1:num_cc
         
         mask = false(size(tmpav)); mask(rlimit(1)+1:rlimit(2)-1, climit(1)+1:climit(2)-1) = true;
         tmpav(~mask) = 0;
-        %     response_filled(:,:,t) = response_filled(:,:,t)+tmpav;
+        
+        % Make sure the resulting px are connected
+        test_connc = bwconncomp(tmpav);
+        if numel(test_connc.PixelIdxList) > 1
+            [~,m] = max(cellfun(@numel, test_connc.PixelIdxList));
+            new_px = test_connc.PixelIdxList{m};
+            tmpav(:) = 0; tmpav(new_px) = 1;
+        end
+        
         if ~all(~tmpav,'all')
             [r_f, c_f] = ind2sub([imsize(1) imsize(2)], find(tmpav == 1));
             r_f = reshape(r_f, [numel(r_f) 1]);
