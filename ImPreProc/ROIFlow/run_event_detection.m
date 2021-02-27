@@ -3,7 +3,7 @@ function [eventdata, selrois, params] = run_event_detection(eventdata,roilist, d
 n_frames = size(dFoFtraces,2);
 peakwin = ceil(params.peak_win_ms/(1000*ft));
 % threshold_fac = params.ev_fac;
-perc_threshold = params.perc_thresh;
+perc_threshold = params.ev_perc_thresh;
 inizone = params.fbase_winsize_s;
 safe_fac = params.safe_fac;
 critical_fac = params.critical_fac;
@@ -14,7 +14,7 @@ if getui
         'Critical factor (multiple of percentile):', 'Specific ROIs (sep: ,)'} ,...
         'Set Values',[1 30], {num2str(perc_threshold),num2str(safe_fac), num2str(critical_fac),''});
     if ~isempty(ui)
-        perc_threshold = str2num(ui{1}); params.perc_thresh = perc_threshold;
+        perc_threshold = str2num(ui{1}); params.ev_perc_thresh = perc_threshold;
         safe_fac = str2num(ui{2}); params.safe_fac = safe_fac;
         critical_fac = str2num(ui{3}); params.critical_fac = critical_fac;
     end
@@ -42,7 +42,10 @@ for iRoi = 1:nrois
     %         mean_neg_amp = mean(neg_dFoF_vals);
     
     %% Detect event onset and peak based on sd of dFoF values
-    [~, num_pos_ev, onset_idx, peak_idx] = get_ev_onset(tmpdFoF, n_frames, perc_neg_val, peakwin, ft, inizone);
+    perc_pos_val = prctile(tmpdFoF(tmpdFoF>0), perc_threshold);
+    perc_val = perc_pos_val;
+    max_val = perc_pos_val*critical_fac;
+    [~, num_pos_ev, onset_idx, peak_idx] = get_ev_onset(tmpdFoF, n_frames, perc_val*critical_fac, peakwin, ft, inizone);
     
     if num_pos_ev > 0        
         %% Output
@@ -55,7 +58,7 @@ for iRoi = 1:nrois
         
         %% Classsify ROIs/ events for revision
         % Detect events in negativ range as control
-        [~, num_neg_ev, ~, neg_peak_idx] = get_ev_onset(-tmpdFoF, n_frames, perc_neg_val, peakwin, ft, inizone);
+        [~, num_neg_ev, ~, neg_peak_idx] = get_ev_onset(-tmpdFoF, n_frames, perc_val*critical_fac, peakwin, ft, inizone);
         if num_neg_ev ~= 0, neg_dFoF_amps = abs(tmpdFoF(neg_peak_idx));
         else, neg_dFoF_amps = 0;
         end
@@ -63,16 +66,15 @@ for iRoi = 1:nrois
         % Draw random points to quantify noise
         [rnd_amp] = get_rnd_ev(tmpdFoF, n_frames, rand_pts, peakwin);
         
-        min_dFoF_amp = min(dFoF_amps);
-        ev_criterion1 = dFoF_amps > max_neg_val*safe_fac;
-        ev_criterion2 = dFoF_amps <= max_neg_val*safe_fac & dFoF_amps > perc_neg_val*critical_fac;
+        ev_criterion1 = dFoF_amps > max_val*safe_fac;
+        ev_criterion2 = dFoF_amps <= max_val*safe_fac;
         
-        roi_criterion1 = sum(ev_criterion2) / sum(ev_criterion1);
-        if all(~ev_criterion1), roi_criterion1 = 3; end
+        roi_criterion1 = sum(ev_criterion1) / sum(ev_criterion2);
+        if all(~ev_criterion2) && ~all(~ev_criterion1), roi_criterion1 = 1; end
 %         roi_criterion2 = sum(neg_dFoF_amps> perc_neg_val*critical_fac) / sum(ev_criterion1 | ev_criterion2);
-        roi_criterion2 = sum(tmpdFoF<-perc_neg_val) / sum(tmpdFoF>perc_neg_val);
-        roi_criterion3 = std(tmpdFoF) / mean(dFoF_amps(ev_criterion2 | ev_criterion1));
-        if all(~(ev_criterion1 | ev_criterion2)), roi_criterion3 = 1; end
+%         roi_criterion2 = perc_val / mean(dFoF_amps(ev_criterion1));
+        roi_criterion2 = prctile(tmpdFoF(tmpdFoF>0),50)/prctile(tmpdFoF(tmpdFoF>0),99); %std(tmpdFoF(tmpdFoF>0))
+        roi_criterion3 = sum(tmpdFoF<-perc_val*critical_fac) / sum(ev_criterion2);
         
         if auto
             test_idx = find(ev_criterion2 == 1);
@@ -88,12 +90,12 @@ for iRoi = 1:nrois
             %             rev_idx = test_idx(~criterion21);
         end
         
-        if roi_criterion1 <= 2 || (roi_criterion2 <= 0.2 && roi_criterion3 <= 0.2)
+        if roi_criterion1 >= 0.5 || (any(roi_criterion1) && roi_criterion2 <= 0.21 && roi_criterion3 <= 0.1)
             % Accept all events above critical threshold
             remark = 'perfect';
             save_idx = onset_idx(ev_criterion1 | ev_criterion2);
             revise_idx = [];
-        elseif any(ev_criterion1) || (roi_criterion2 <= 0.35 && roi_criterion3 <= 0.5)
+        elseif any(ev_criterion1) || (roi_criterion2 <= 0.23 && roi_criterion3 <= 0.3)
             remark = 'ok';
             if auto
                 save_idx = onset_idx(ev_criterion1 | ev_criterion3);
@@ -127,7 +129,7 @@ for iRoi = 1:nrois
         eventdata{tmproi,7} = save_idx;
         eventdata{tmproi,8} = rnd_amp;
         eventdata{tmproi,9} = neg_dFoF_vals';
-        eventdata{tmproi,10} = [perc_neg_val max_neg_val safe_fac critical_fac];
+        eventdata{tmproi,10} = [perc_val max_val safe_fac critical_fac];
         eventdata{tmproi,11} = remark;
         eventdata{tmproi,12} = [n_ev_class1 n_ev_class2];
     else
@@ -142,7 +144,7 @@ for iRoi = 1:nrois
         eventdata{tmproi,7} = [];
         eventdata{tmproi,8} = [];
         eventdata{tmproi,9} = [];
-        eventdata{tmproi,10} = [perc_neg_val max_neg_val safe_fac critical_fac];
+        eventdata{tmproi,10} = [perc_val max_val safe_fac critical_fac];
         eventdata{tmproi,11} = 'No events';
         eventdata{tmproi,12} = [];
     end
@@ -150,10 +152,10 @@ end
 
 
 %% Local functions
-    function [perc_neg_val, num_ev, onset, peak] = get_ev_onset(dFoFtrc, n_frames, perc_neg_val, peakwin, ft, inizone)
+    function [perc_val, num_ev, onset, peak] = get_ev_onset(dFoFtrc, n_frames, perc_val, peakwin, ft, inizone)
 %         if isempty(perc_neg_val), sd_val = std(dFoFtrc); end
         % Onset
-        onset = find(dFoFtrc > (perc_neg_val) == 1);
+        onset = find(dFoFtrc > (perc_val) == 1);
         onset = onset-1;
         if ~isempty(onset)
             onset(onset.*ft <= inizone) = [];
@@ -196,23 +198,3 @@ end
     end
 
 end
-
-
-
-% %%
-% neg_onset_idx = find((tmpdFoF < (sd_dFoF_val*(-threshold_fac))) == 1);
-%     neg_onset_idx = neg_onset_idx-1;
-%     if numel(neg_onset_idx) > 0
-%         test_dist = diff(neg_onset_idx); del = find(test_dist <= peakwin); neg_onset_idx(del+1) = [];
-%         num_neg_ev = numel(neg_onset_idx);
-%         neg_dFoF_amps = NaN(num_neg_ev,1);
-%         for iP = 1:num_neg_ev % Calculate amplitude of maxima in the specified window after event onset with randomly chosen points
-%             if neg_onset_idx(iP)+peakwin > n_frames, tmpwin= n_frames-neg_onset_idx(iP);
-%             else, tmpwin = peakwin;
-%             end
-%             neg_dFoF_amps(iP) = abs(min(tmpdFoF(neg_onset_idx(iP):neg_onset_idx(iP)+tmpwin)));
-%         end
-%         mean_neg_amp =  mean(neg_dFoF_amps);
-%     else
-%         mean_neg_amp = 0;
-%     end

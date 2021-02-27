@@ -116,7 +116,7 @@ end
 
 function cb_but1_load(~,~)
 global LOADED FILELIST SELFILE NFILES PATH FONTSIZE...
-    but1_2 but1_3 but1_4 but1_5 but1_6 shownonev
+    but1_4 but1_5 but1_6 shownonev
 if LOADED
     filesfig = figure('toolbar', 'none', 'menu', 'none'); axis('off');
     fl1 = uicontrol('parent', filesfig, 'style', 'listbox','units', 'normalized','position', [.05 .05 .4 .8],'string', FILELIST([FILELIST{:,3}]==0,1),'FONTSIZE', FONTSIZE, 'callback', {@cb_selfile});
@@ -140,8 +140,6 @@ else
     end
     SELFILE = 1;
     LOADED = true;
-    but1_2.Enable='on';
-    but1_3.Enable='on';
     but1_4.Enable='on';
     but1_5.Enable='on';
     but1_6.Enable='on';
@@ -234,11 +232,13 @@ end
 
 function cb_but1_detection(~,~)
 global roidata EVDATA ALLROIS PARAMS NROIS SELROI...
-    sp2_2 sp1a sp1b ddlist DETECTED ROILIST TRCMODE PLOTMODE FT AUTO
+    sp2_2 sp1a sp1b but1_3 but1_2 trcfig ddlist DETECTED ROILIST TRCMODE PLOTMODE FT AUTO
 % Detects events in all traces
 if SELROI == 0, ROILIST = ALLROIS(:,1:2); SELROI = 1; end
 [EVDATA, detroi, PARAMS] = run_event_detection(EVDATA, ROILIST, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, FT, AUTO, true);
 DETECTED(detroi) = true;
+but1_3.Enable='on';
+but1_2.Enable='on';
 % Discard Rois from list if they dont show events
 if any(logical(cellfun(@isempty, EVDATA(:,7))) &...
         logical(cellfun(@isempty, EVDATA(:,6))))
@@ -254,7 +254,7 @@ else
     ROILIST = ALLROIS([ALLROIS{:,3}]',:);
     pternew=1:NROIS;
 end
-if isempty(pternew), ddlist.String = 'NO ROIs';ddlist.Enable='off'; SELROI = 0;
+if isempty(pternew), ddlist.String = 'NO ROIs';ddlist.Enable='off'; SELROI = 0; close(trcfig);
 elseif pternew~=0, ddlist.Enable='on';ddlist.String = ROILIST(:,1);
 end
 if SELROI ~= 0
@@ -293,20 +293,22 @@ end
 function switch_trace(swdir)
 global SELROI sp2_1 sp2_2 DETECTED EVDATA txtbig ROILIST...
     TRCMODE ddlist PLOTMODE
-tmpid = find(SELROI == [ROILIST{:,2}]);
-if swdir == -1
-    if tmpid > 1, SELROI = ROILIST{tmpid-1,2}; tmpid=tmpid-1; end
-elseif swdir == 1
-    if tmpid < size(ROILIST,1), SELROI = ROILIST{tmpid+1,2}; tmpid=tmpid+1; end
-end
-ddlist.Value = tmpid;
-if ishandle(sp2_2)
-    plot_traces(SELROI, TRCMODE, DETECTED(SELROI));
-    plot_rois(SELROI, PLOTMODE,sp2_1,[]);
-else, open_trcfig();
-end
-if DETECTED(SELROI)
-    update_main_fig();
+if SELROI ~= 0
+    tmpid = find(SELROI == [ROILIST{:,2}]);
+    if swdir == -1
+        if tmpid > 1, SELROI = ROILIST{tmpid-1,2}; tmpid=tmpid-1; end
+    elseif swdir == 1
+        if tmpid < size(ROILIST,1), SELROI = ROILIST{tmpid+1,2}; tmpid=tmpid+1; end
+    end
+    ddlist.Value = tmpid;
+    if ishandle(sp2_2)
+        plot_traces(SELROI, TRCMODE, DETECTED(SELROI));
+        plot_rois(SELROI, PLOTMODE,sp2_1,[]);
+    else, open_trcfig();
+    end
+    if DETECTED(SELROI)
+        update_main_fig();
+    end
 end
 end
 
@@ -401,7 +403,7 @@ end
 plot(FT.*(1:size(tmptraces,2)), tmptraces(roiid,:)+1, 'Color', trccol, 'LineWidth', 1);
 if ~isempty(EVDATA{SELROI,10})
     hold on, yline(1+EVDATA{SELROI,10}(2)*EVDATA{SELROI,10}(3), 'cyan');
-    text(1,1+EVDATA{SELROI,10}(2)*EVDATA{SELROI,10}(3), strcat('Max.neg.val. x ',num2str(EVDATA{SELROI,10}(3))), 'Fontsize', 6);
+    text(1,1+EVDATA{SELROI,10}(2)*EVDATA{SELROI,10}(3), strcat('det.thresh. x ',num2str(EVDATA{SELROI,10}(3))), 'Fontsize', 6);
 end
 if ~isempty(EVDATA{SELROI,10})
     yline(1+EVDATA{SELROI,10}(1)*EVDATA{SELROI,10}(4), 'red');

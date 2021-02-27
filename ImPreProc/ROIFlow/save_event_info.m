@@ -45,10 +45,9 @@ eventinfo_xls = strcat(savepath, '\EVENTS_', filename,'.xlsx'); if isa(eventinfo
 summary_xls = strcat(savepath, '\SUMMARY_', filename,'.xlsx'); if isa(summary_xls,'cell'), summary_xls=summary_xls{1};end
 bg_png = strcat(savepath, '\BGMASK_', filename,'.png'); if isa(bg_png,'cell'), bg_png=bg_png{1};end
 roi_ovw_png = strcat(savepath, '\ROIOVW_', filename,'.png'); if isa(roi_ovw_png,'cell'), roi_ovw_png=roi_ovw_png{1};end
-dist_mtrx_xls = strcat(savepath, '\DISTMTRX_', filename,'.xlsx'); if isa(dist_mtrx_xls,'cell'), dist_mtrx_xls=dist_mtrx_xls{1};end
-synchro_mtrx_xls = strcat(savepath, '\SYNCHROMTRX_', filename,'.xlsx'); if isa(synchro_mtrx_xls,'cell'), synchro_mtrx_xls=synchro_mtrx_xls{1};end
+dia_mtrx_xls = strcat(savepath, '\DIAMTRX_', filename,'.xlsx'); if isa(dia_mtrx_xls,'cell'), dia_mtrx_xls=dia_mtrx_xls{1};end
+synchro_dist_xls = strcat(savepath, '\SYNCHRO_DIST_', filename,'.xlsx'); if isa(synchro_dist_xls,'cell'), synchro_dist_xls=synchro_dist_xls{1};end
 synchro_tbl_xls = strcat(savepath, '\SYNCHRO_', filename,'.xlsx'); if isa(synchro_tbl_xls,'cell'), synchro_tbl_xls=synchro_tbl_xls{1};end
-roi_mtrx_xls = strcat(savepath, '\ROIMTRX_', filename,'.xlsx'); if isa(roi_mtrx_xls,'cell'), roi_mtrx_xls=roi_mtrx_xls{1};end
 ev_struct = strcat(savepath, '\EVSTRCT_', filename,'.mat'); if isa(ev_struct,'cell'), ev_struct=ev_struct{1};end
 
 %% Event-related
@@ -174,15 +173,16 @@ if ~isempty(save_rois)
     end
     
     %% Calculate ROI Distance and Synchronicity Matrix
-    
     disp('Calculate distance matrix...');
     synchro_mtrx = ones(nrois,nrois);
     distance_mtrx = ones(nrois,nrois);
     fill_mtrx = true(nrois,nrois);
     roi_mtrx = cell(nrois,nrois);
+    synchro_dist_mtrx = NaN(sum(1:nrois-1),2);
+    cnt = 1;
     for iRoi1 = 1:nrois-1
         tmproi1 = save_rois(iRoi1);
-        tmpbin1 = eventdata{tmproi1,1};
+        tmpbin1 = zeros(nframes,1); tmpbin1(eventdata{tmproi1,7}) = 1;
         tmpx1 = roidata.roi_centroids_um(tmproi1,1);
         tmpy1 = roidata.roi_centroids_um(tmproi1,2);
         for iRoi2 = iRoi1+1:nrois
@@ -190,26 +190,28 @@ if ~isempty(save_rois)
             tmproi2 = save_rois(iRoi2);
             tmpx2 = roidata.roi_centroids_um(tmproi2,1);
             tmpy2 = roidata.roi_centroids_um(tmproi2,2);
-            distance_mtrx(iRoi1,iRoi2) = norm([tmpx1 tmpy1] -[tmpx2 tmpy2]);
+            dist = norm([tmpx1 tmpy1] -[tmpx2 tmpy2]);
+            distance_mtrx(iRoi1,iRoi2) = dist;
             % Synchronicity expressed as Pearsons correlation coefficient
-            tmpbin2 = eventdata{tmproi2,1};
-            %         r = cov(tmpbin1, tmpbin2)./(std(tmpbin1)*std(tmpbin2));
-            %         r = corrcoef([tmpbin1, tmpbin2]);
-            r_nom = sum(tmpbin1.*tmpbin2- mean(tmpbin1)*mean(tmpbin2)*(1/n_frames));
-            r_denom = sqrt((mean(tmpbin1.^2)- (mean(tmpbin1)^2)*(1/n_frames)) *...
-                (mean(tmpbin2.^2)- (mean(tmpbin2)^2)*(1/n_frames)));
-            r = r_nom/r_denom;
-            synchro_mtrx(iRoi1,iRoi2) = r;
+            tmpbin2 = zeros(nframes,1); tmpbin2(eventdata{tmproi2,7}) = 1;
+            av1 = mean(tmpbin1); av2 = mean(tmpbin2);
+            r = sum((av1-tmpbin1).*(av2-tmpbin2)) / sqrt(sum((av1-tmpbin1).^2)*sum((av2-tmpbin2).^2));
+            synchro_mtrx(iRoi1,iRoi2) =  r;
             fill_mtrx(iRoi1,iRoi2) = false;
             roi_mtrx{iRoi1,iRoi2} = strcat(roinames{iRoi1},'-',roinames{iRoi2});
+            synchro_dist_mtrx(cnt,1) = r; synchro_dist_mtrx(cnt,2) = dist;
+            cnt = cnt+1;
         end
     end
-    flip_mtrx = rot90(distance_mtrx,2);
-    distance_mtrx(fill_mtrx) = flip_mtrx(fill_mtrx);
-    flip_mtrx = rot90(synchro_mtrx,2);
-    synchro_mtrx(fill_mtrx) = flip_mtrx(fill_mtrx);
-    flip_mtrx = rot90(roi_mtrx,2);
-    roi_mtrx(fill_mtrx) = flip_mtrx(fill_mtrx);
+    trsp_mtrx = distance_mtrx';
+    distance_mtrx(fill_mtrx) = trsp_mtrx(fill_mtrx);
+    trsp_mtrx = synchro_mtrx';
+    synchro_mtrx(fill_mtrx) = trsp_mtrx(fill_mtrx);
+    trsp_mtrx = roi_mtrx';
+    roi_mtrx(fill_mtrx) = trsp_mtrx(fill_mtrx);
+    synchro_dist_tbl = table();
+    synchro_dist_tbl.Dist_um = synchro_dist_mtrx(:,2);
+    synchro_dist_tbl.PearsonR = synchro_dist_mtrx(:,1);
     
     %% Calculate Synchronicity Histogram
     for iT = 1:nframes
@@ -225,7 +227,6 @@ if ~isempty(save_rois)
     end
     
     %% Recoring Summary
-    
     rec_summary.Num_ROIs = nrois;
     rec_summary.ToT_Num_Events = totevents;
     rec_summary.Num_Events_Mean = totevents/nrois;
@@ -269,13 +270,14 @@ if ~isempty(save_rois)
     writetable(struct2table(roi_summary), summary_xls, 'Sheet', 'ROIs');
     writetable(struct2table(rec_summary), summary_xls, 'Sheet', 'Recording');
     
-    % Dist Matrix & ROI Names
-    writecell(roi_mtrx, roi_mtrx_xls,'Sheet', 'ROIs');
-    writematrix(distance_mtrx, dist_mtrx_xls, 'Sheet', 'Dist_um');
+    % Diagonal Matrices (Distance, Synchronicity, ROI Names)
+    writecell(roi_mtrx, dia_mtrx_xls,'Sheet', 'ROIs');
+    writematrix(distance_mtrx, dia_mtrx_xls, 'Sheet', 'Dist_um');
+    writematrix(synchro_mtrx, dia_mtrx_xls, 'Sheet', 'PearsonR');
     
-    % Synchronicity Table and Matrix
+    % Synchronicity Table
     writetable(struct2table(synchro_tbl), synchro_tbl_xls, 'Sheet', 'Synchronicity');
-    writematrix(synchro_mtrx, synchro_mtrx_xls, 'Sheet', 'PearsonR');
+    writetable(synchro_dist_tbl, synchro_dist_xls);
     
 end
 
