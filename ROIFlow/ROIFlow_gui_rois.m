@@ -313,7 +313,7 @@ elseif any(isnan([INFOSTRUCT(:).xy_scale]))
     msgbox('There are files without assigned XY scale!');
 else
     close gcf;
-    run_ROI_detection(INFOSTRUCT, []);
+    run_roi_detection(INFOSTRUCT, []);
 end
 end
 

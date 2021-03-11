@@ -1,4 +1,4 @@
-function run_ROI_detection(infostruct, params)
+function run_roi_detection(infostruct, params)
 %% Function for automatic detection of ROI defined by intensity
 % Detect ROIs and save as struct to load and process further
 
