@@ -46,13 +46,13 @@ crptrace_xls = strcat(savepath, '\CROPTRC_', filename,'.xlsx'); if isa(crptrace_
 binary_xls = strcat(savepath, '\BINARY_', filename,'.xlsx'); if isa(binary_xls,'cell'), binary_xls=binary_xls{1};end
 eventinfo_xls = strcat(savepath, '\EVENTS_', filename,'.xlsx'); if isa(eventinfo_xls,'cell'), eventinfo_xls=eventinfo_xls{1};end
 summary_xls = strcat(savepath, '\SUMMARY_', filename,'.xlsx'); if isa(summary_xls,'cell'), summary_xls=summary_xls{1};end
+bg_png = strcat(savepath, '\BGMASK_', filename,'.png'); if isa(bg_png,'cell'), bg_png=bg_png{1};end
+roi_ovw_png = strcat(savepath, '\ROIOVW_', filename,'.png'); if isa(roi_ovw_png,'cell'), roi_ovw_png=roi_ovw_png{1};end
 dia_mtrx_xls = strcat(savepath, '\DIAMTRX_', filename,'.xlsx'); if isa(dia_mtrx_xls,'cell'), dia_mtrx_xls=dia_mtrx_xls{1};end
 synchro_dist_xls = strcat(savepath, '\SYNCHRO_DIST_', filename,'.xlsx'); if isa(synchro_dist_xls,'cell'), synchro_dist_xls=synchro_dist_xls{1};end
 synchro_tbl_xls = strcat(savepath, '\SYNCHRO_', filename,'.xlsx'); if isa(synchro_tbl_xls,'cell'), synchro_tbl_xls=synchro_tbl_xls{1};end
 ev_struct = strcat(savepath, '\EVSTRCT_', filename,'.mat'); if isa(ev_struct,'cell'), ev_struct=ev_struct{1};end
 aip_tiff =  strcat(savepath, '\AIP_', filename,'.tiff'); if isa(aip_tiff,'cell'), aip_tiff=aip_tiff{1};end
-bg_tiff = strcat(savepath, '\BGMASK_', filename,'.tiff'); if isa(bg_tiff,'cell'), bg_tiff=bg_tiff{1};end
-roi_ovw_png = strcat(savepath, '\ROIOVW_', filename,'.png'); if isa(roi_ovw_png,'cell'), roi_ovw_png=roi_ovw_png{1};end
 
 %% Event-related
 nframes = size(roidata.traces,2);
@@ -174,7 +174,7 @@ if ~isempty(save_rois)
         
         % Save ROI coordinates as .roi file
         roi_name = writeImageJROI(boundary, 3, 0,0,0, roipath, iRoi);
-        roi_names_cell{iRoi} = strcat(roipath, roi_name,'.roi');
+        roi_names_cell{iRoi} = strcat(roipath, '\', roi_name,'.roi');
     end
     
     %% Calculate ROI Distance and Synchronicity Matrix
@@ -287,32 +287,43 @@ if ~isempty(save_rois)
     % Zip .roi files
     roi_zip = strcat(savepath,'\ROIs.zip'); if isa(roi_zip,'cell'), roi_zip=roi_zip{1};end
     zip(roi_zip,roi_names_cell);
-    roipath = roipath(1:end-1);
-    rmdir(roipath, 's');
+    for iRoi = 1:nrois
+        delete roi_names_cell{iRoi};
+    end
+    rmdir roipath;
     
 end
 
-% Write AIP w/o ROIs as .tiff
+% AIP w/o ROIs
 imwrite(uint8(uint8_im), aip_tiff);
 
-% Write Background mask as .tiff (background = black/0)
+% Background mask and ROI overview
 imsize = size(roidata.aip);
-bg_im = zeros(imsize(1), imsize(2),1);
-bg_im(roidata.background_mask==0) = 255;
-imwrite(uint8(bg_im), bg_tiff);
+magfac = round(34000/imsize(2))*500;
+rim = zeros(imsize(1), imsize(2),1);
+gim = zeros(imsize(1), imsize(2),1);
+bim = zeros(imsize(1), imsize(2),1);
+bg_col = [0.1529 0.1882 0.6706]; % RGB
+rim(roidata.background_mask==1) = bg_col(1);
+gim(roidata.background_mask==1) = bg_col(2);
+bim(roidata.background_mask==1) = bg_col(3);
+rgbim = cat(3, rim, gim,bim);
+f1=figure('Position',figsize,'Visible','off'); imshow(rgbim, 'InitialMagnification', magfac);
+saveas(f1,bg_png); close(f1);
 
-% Write ROI overview as .png and event cell as struct
 if ~isempty(save_rois)
-    % ROI overview
     f1=figure('Position',figsize,'Visible','off');
     imagesc(uint8(uint8_im));colormap('gray');axis('off');daspect([1 1 1]);
     for iRoi = 1:nrois
-        boundary = roidata.roi_bounds{save_rois(iRoi),1}; boundary = boundary{1};
-        hold on, plot(boundary(:,2), boundary(:,1), 'Color',cmap(:,roidata.roi_bounds{save_rois(iRoi),2})', 'LineWidth', 1)
+        B = roidata.roi_bounds{save_rois(iRoi),1};
+        for k = 1:length(B)
+            boundary = B{k};
+            hold on, plot(boundary(:,2), boundary(:,1), 'Color',cmap(:,roidata.roi_bounds{save_rois(iRoi),2})', 'LineWidth', 1)
+        end
     end
     saveas(f1,roi_ovw_png); close(f1);
     
-    % Cell with events
+    % Save cell with events as struct
     eventinfo = struct();
     eventinfo.eventdata = eventdata;
     save(ev_struct, 'eventinfo', '-v7.3');

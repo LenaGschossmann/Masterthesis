@@ -1,7 +1,5 @@
 %% User Interfacce for ROIFlow Analysis for 2PM and Confocal data of spontaneous events %%
 
-addpath('C:\Users\lena_\Projects\code_extern\Matlab\WriteImageJRoi\');
-
 global ROILIST REVINFO LOADED PATH FILELIST SELFILE NFILES...
     NROIS SELROI FT CMAP roidata mainfig txtsm ddlist sp1a sp1b txtbig...
     fig3_pos FONTSIZE EVDATA DELROIS ALLROIS PARAMS DETECTED fig2_pos imsp2_pos...
@@ -22,8 +20,8 @@ shownonev = true;
 PARAMS = get_predefined_params();
 TRCMODE = 'dFoF';
 PLOTMODE = 'aip';
-AUTO = true;
-BATCH = true;
+AUTO = false;
+BATCH = false;
 
 %% GUI Parameters
 close all;
@@ -180,13 +178,12 @@ function cb_but1_accept(~,~)
 global SELFILE FILELIST EVDATA roidata...
     PATH trcfig BATCH
 if ishandle(trcfig), figure(trcfig); close gcf; end
+
 tmpfl = find([FILELIST{:,3}]== 0);
 if BATCH
     % Process all files with chosen setting
     process_batch(tmpfl);
 else
-    [~] = save_event_info(EVDATA, roidata, PATH, FILELIST{SELFILE},false);
-    FILELIST{SELFILE,3} = true;
     % Work on next file
     if ~isempty(tmpfl)
         SELFILE = FILELIST{tmpfl(1),2};
@@ -444,12 +441,11 @@ end
 function process_batch(file_idx)
 global PATH FILELIST PARAMS
 nfiles = numel(file_idx);
-exp_summary = struct('Rec_Name', [], 'Num_ROIs',[],'ToT_Num_Events',[],'Amp_Mean',[],'Amp_FoF_Mean',[],'Amp_dFoF_Mean',[],...
-    'Amp_SD',[],'Amp_FoF_SD',[],'Amp_dFoF_SD',[], 'IEI_Mean',[],'EvRate_Mean',[],...
-    'Area_um_Mean',[],'Dend_Area_um',[],'Bg_Area_um',[],'FoV_Area_um',[],'StructNorm_Area',[],'Events_per_Dend_Area',[]);
-sum_cnt = 1;
-for iFile = 1:nfiles
-        fprintf('Processing file %i / %i\n', iFile, nfiles);
+xall = 1:0.1:3;
+results = NaN(numel(nfiles),numel(xall));
+for xT = 1:numel(xall)
+    for iFile = 1:nfiles
+        fprintf('Processing file %i / %i\n', iFile+1, nfiles+1);
         tmpfile = FILELIST{file_idx(iFile),2};
         evdata = cell(1,12);
         
@@ -465,50 +461,18 @@ for iFile = 1:nfiles
         % cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],NROIS);
         
         % Detect
-        [evdata, detroi, PARAMS] = run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, roidata.frametime_s, true, false);
-        
-        % Discard Rois from list if they dont show events
-        if any(logical(cellfun(@isempty, evdata(:,7))) &...
-                logical(cellfun(@isempty, evdata(:,6))))
-            keep = find(logical(cellfun(@isempty, evdata(:,7)))&logical(cellfun(@isempty, evdata(:,6))) == 0);
-            roilist = roilist(keep,:); 
-        end
+        [evdata, detroi, PARAMS] = ThreshRamp_run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces,...
+            97, 1.75, xall(xT), PARAMS, roidata.frametime_s, true);
         
         % Save
-        [tmp_summary] = save_event_info(evdata, roidata, PATH, FILELIST{tmpfile}, true);
-%         FILELIST{tmpfile,3} = true;
-
-        % Write all rercording summaries into master table
-        if ~isempty(tmp_summary.Num_ROIs)
-            exp_summary(sum_cnt).Rec_Name = FILELIST{tmpfile}(1:end-4);
-            exp_summary(sum_cnt).Num_ROIs = tmp_summary.Num_ROIs;
-            exp_summary(sum_cnt).ToT_Num_Events = tmp_summary.ToT_Num_Events;
-            exp_summary(sum_cnt).Num_Events_Mean = tmp_summary.Num_Events_Mean;
-            exp_summary(sum_cnt).Amp_Mean = tmp_summary.Amp_Mean;
-            exp_summary(sum_cnt).Amp_FoF_Mean = tmp_summary.Amp_FoF_Mean;
-            exp_summary(sum_cnt).Amp_dFoF_Mean = tmp_summary.Amp_dFoF_Mean;
-            exp_summary(sum_cnt).Amp_SD = tmp_summary.Amp_SD;
-            exp_summary(sum_cnt).Amp_FoF_SD = tmp_summary.Amp_FoF_SD;
-            exp_summary(sum_cnt).Amp_dFoF_SD = tmp_summary.Amp_dFoF_SD;
-            exp_summary(sum_cnt).Mean_SNR = tmp_summary.Mean_SNR;
-            exp_summary(sum_cnt).Event_confidence = tmp_summary.Event_confidence;
-            exp_summary(sum_cnt).IEI_Mean = tmp_summary.IEI_Mean;
-            exp_summary(sum_cnt).EvRate_Mean = tmp_summary.EvRate_Mean;
-            exp_summary(sum_cnt).REC_time_s = tmp_summary.REC_time_s;
-            exp_summary(sum_cnt).Area_um_Mean = tmp_summary.Area_um_Mean;
-            exp_summary(sum_cnt).StructNorm_Area = tmp_summary.StructNorm_Area;
-            exp_summary(sum_cnt).Dend_Area_um = tmp_summary.Dend_Area_um;
-            exp_summary(sum_cnt).Bg_Area_um = tmp_summary.Bg_Area_um;
-            exp_summary(sum_cnt).FoV_Area_um = tmp_summary.FoV_Area_um;
-            exp_summary(sum_cnt).Events_per_Dend_Area = tmp_summary.Events_per_Dend_Area;
-            sum_cnt = sum_cnt+1;
-        end
+        results(iFile, xT) = ThreshRamp_save_event_info(evdata, roidata, PATH, FILELIST{tmpfile});
+        %         FILELIST{tmpfile,3} = true;
+    end
 end
-
-% Write master table to file
-savepath = fullfile(PATH,FILELIST{tmpfile}(1:8));
-exp_summary_xls = strcat(savepath, '_Master.xlsx'); if isa(exp_summary_xls,'cell'), exp_summary_xls=exp_summary_xls{1};end
-writetable(struct2table(exp_summary), exp_summary_xls);
+results(sum(results,2)==0,:) = [];
+results = [ repelem(97, numel(xall)); repelem(1.75, numel(xall));xall; results];
+res_xls = strcat(PATH, '\ThreshRamp.xlsx'); if isa(res_xls,'cell'), res_xls=res_xls{1};end
+writematrix(results, res_xls);
 
 msgbox('All files processed!');
 uiresume; close all;

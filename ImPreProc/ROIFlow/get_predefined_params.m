@@ -84,7 +84,7 @@ end
 % Percentile and factor for detecting events in ROI average trace 
 if ~isempty(args) && any(strcmp(args(1,:),'ev_perc_thresh'))
     params.ev_perc_thresh = args{2,strncmp(args(1,:),'ov', 2)};
-else, params.ev_perc_thresh = 95;
+else, params.ev_perc_thresh = 97;
 end
 % if ~isempty(args) && any(strcmp(args(1,:),'ev_fac'))
 %     params.ev_fac = args{2,strcmp(args(1,:),'ev_fac')};
@@ -93,12 +93,12 @@ end
 % Factor defining multiples of max. neg amplitude above which event is classified as safe
 if ~isempty(args) && any(strncmp(args(1,:),'sa',2))
     params.safe_fac = args{2,strncmp(args(1,:),'sa', 2)};
-else, params.safe_fac = 2;
+else, params.safe_fac = 1.5;
 end
 % Factor defining multiples of prctile above which event is detected
 if ~isempty(args) && any(strncmp(args(1,:),'cr',2))
     params.critical_fac = args{2,strncmp(args(1,:),'cr', 2)};
-else, params.critical_fac = 1.5;
+else, params.critical_fac = 1.3;
 end
 
 end

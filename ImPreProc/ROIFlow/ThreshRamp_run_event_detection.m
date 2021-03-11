@@ -1,24 +1,11 @@
-function [eventdata, selrois, params] = run_event_detection(eventdata,roilist, dFoFtraces, FoFtraces, traces,  params, ft, auto, getui)
+function [eventdata, selrois, params] = ThreshRamp_run_event_detection(eventdata,roilist, dFoFtraces, FoFtraces, traces, ...
+    perc_threshold, safe_fac,critical_fac, params, ft, auto)
 
 n_frames = size(dFoFtraces,2);
 peakwin = ceil(params.peak_win_ms/(1000*ft));
-% threshold_fac = params.ev_fac;
-perc_threshold = params.ev_perc_thresh;
 inizone = params.fbase_winsize_s;
-safe_fac = params.safe_fac;
-critical_fac = params.critical_fac;
 ui = [];
-% ui = inputdlg({'Threshold Factor:', 'Save Factor', 'Specific ROIs (sep: ,)'} ,'Set Values',[1 30], {num2str(threshold_fac), num2str(save_fac), ''});
-if getui
-    ui = inputdlg({'Percentile Threshold:', 'Safe factor (multiple of max. neg. value):',...
-        'Critical factor (multiple of percentile):', 'Specific ROIs (sep: ,)'} ,...
-        'Set Values',[1 30], {num2str(perc_threshold),num2str(safe_fac), num2str(critical_fac),''});
-    if ~isempty(ui)
-        perc_threshold = str2num(ui{1}); params.ev_perc_thresh = perc_threshold;
-        safe_fac = str2num(ui{2}); params.safe_fac = safe_fac;
-        critical_fac = str2num(ui{3}); params.critical_fac = critical_fac;
-    end
-end
+
 if isempty(ui), selrois = 1:size(dFoFtraces,1);
 elseif isempty(ui{4}), selrois = 1:size(dFoFtraces,1);
 else
@@ -36,7 +23,7 @@ for iRoi = 1:nrois
     tmptrc = traces(tmproi,:);
     
     %% All Negativ values
-    neg_dFoF_vals = abs(tmpdFoF(tmpdFoF<0));
+%     neg_dFoF_vals = abs(tmpdFoF(tmpdFoF<0));
 %     perc_neg_val = prctile(neg_dFoF_vals, perc_threshold);
 %     max_neg_val = max(neg_dFoF_vals);
     %         mean_neg_amp = mean(neg_dFoF_vals);
@@ -78,6 +65,7 @@ for iRoi = 1:nrois
         
         if auto
             test_idx = find(ev_criterion2 == 1);
+%             ev_criterion3 = true(1,numel(ev_criterion2));
             ev_criterion3 = false(1,numel(ev_criterion2));
             % Check if difference between onset & peak is larger than between peak and peak+1
             for iN = 1:numel(test_idx)
