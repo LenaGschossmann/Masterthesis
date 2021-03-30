@@ -177,15 +177,16 @@ open_trcfig();
 end
 
 function cb_but1_accept(~,~)
-global SELFILE FILELIST EVDATA roidata...
+global SELFILE FILELIST EVDATA ALLROIS roidata...
     PATH trcfig BATCH
 if ishandle(trcfig), figure(trcfig); close gcf; end
 tmpfl = find([FILELIST{:,3}]== 0);
-if BATCH
+if BATCH && size(FILELIST,1) > 1
     % Process all files with chosen setting
     process_batch(tmpfl);
 else
-    [~] = save_event_info(EVDATA, roidata, PATH, FILELIST{SELFILE},false);
+    roiselection = [ALLROIS{:,3}];
+    [~] = save_event_info(EVDATA, roiselection, roidata, PATH, FILELIST{SELFILE},false);
     FILELIST{SELFILE,3} = true;
     % Work on next file
     if ~isempty(tmpfl)
@@ -314,18 +315,20 @@ end
 end
 
 function cb_but2_del_roi(~,~)
-global ALLROIS SELROI ROILIST ddlist sp1a sp1b DETECTED TRCMODE PLOTMODE
+global ALLROIS SELROI ROILIST ddlist sp1a sp1b sp2_1 trcfig DETECTED TRCMODE PLOTMODE
 % Discard Roi
 ALLROIS{SELROI,3} = false;
 currpter = find(([ROILIST{:,2}]==SELROI)==1);
 ROILIST(currpter,:) = [];
 if ~isempty(ROILIST)
+    if currpter > size(ROILIST,1), currpter = 1; end
     SELROI = ROILIST{currpter,2}; ddlist.String = ROILIST(:,1); ddlist.Value = currpter;
     plot_traces(SELROI, TRCMODE, DETECTED(SELROI));
     if DETECTED(SELROI), update_main_fig(); end
-else,SELROI=0; ddlist.String = 'NO ROIs';ddlist.Enable='off';
+    plot_rois([ROILIST{:,2}], PLOTMODE, sp1a,sp1b);
+    plot_rois(SELROI, PLOTMODE, sp2_1,[]);
+else,SELROI=0; ddlist.String = 'NO ROIs';ddlist.Enable='off';close(trcfig);
 end
-plot_rois([ROILIST{2,:}], PLOTMODE, sp1a,sp1b);
 end
 
 function cb_selfile(hOb,~)
@@ -370,21 +373,29 @@ elseif strcmp(mode,'bg')
 end
 
 for cc = 1:numel(plotids)
-    B = roidata.roi_bounds{plotids(cc),1};
-    for k = 1:length(B)
-        boundary = B{k};
-        hold on; plot(boundary(:,2), boundary(:,1), 'Color',CMAP(:,roidata.roi_bounds{plotids(cc),2})', 'LineWidth', 1)
-    end
+    boundary = roidata.roi_bounds{plotids(cc),1}; boundary = boundary{1};
+    hold on
+    plot(boundary(:,2), boundary(:,1), 'Color',CMAP(:,roidata.roi_bounds{plotids(cc),2})', 'LineWidth', 1)
 end
 
 if ~isempty(spb)
     axes(spb); cla;
-    v1 = min(cellfun(@min, roidata.roi_bounds(:,2)));
+%     v1 = min(cellfun(@min, roidata.roi_bounds(:,2)));
     v2 = max(cellfun(@max, roidata.roi_bounds(:,2)));
-    colormap(spb, CMAP(:,v1:v2)');
+    if v2 > 12 && v2 < 40
+        stepsize = 5;
+        steps = ceil(v2/stepsize);
+        v2 = ceil(v2/steps)*steps;
+    elseif v2 >=40
+        stepsize = 10;
+        steps = ceil(v2/stepsize);
+        v2 = ceil(v2/steps)*steps;
+    else
+        steps = v2;
+    end
+    colormap(spb, CMAP(:,1:v2)');
     cb = colorbar();
-    steps = ceil(v2-v1/10);
-    cbtl = linspace(v1, v2, steps)';
+    cbtl = linspace(1, v2, steps)';
     tmplim = get(cb,'YLim');
     cbt = linspace(tmplim(1), tmplim(2), steps);
     set(cb, 'YTick', cbt, 'YTickLabel',cbtl, 'Location', 'eastoutside');
@@ -456,26 +467,27 @@ for iFile = 1:nfiles
         % Load
         load(fullfile(PATH,FILELIST{tmpfile,1}));
         nrois = roidata.n_rois;
-        roilist = cell(nrois,2);
+        roilist = cell(nrois,3);
         for i = 1:nrois
-            roilist{i,1} = sprintf('ROI %i',i); roilist{i,2} = i;
+            roilist{i,1} = sprintf('ROI %i',i); roilist{i,2} = i; roilist{i,3} = true;
         end
         cmap_n = max(cellfun(@max ,roidata.roi_bounds(:,2)));
         cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],cmap_n);
         % cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],NROIS);
         
         % Detect
-        [evdata, detroi, PARAMS] = run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, roidata.frametime_s, true, false);
+        [evdata, ~, PARAMS] = run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, roidata.frametime_s, true, false);
         
         % Discard Rois from list if they dont show events
-        if any(logical(cellfun(@isempty, evdata(:,7))) &...
-                logical(cellfun(@isempty, evdata(:,6))))
-            keep = find(logical(cellfun(@isempty, evdata(:,7)))&logical(cellfun(@isempty, evdata(:,6))) == 0);
-            roilist = roilist(keep,:); 
+        for iRoi = 1:size(evdata,1)
+            if isempty(evdata{iRoi,7}) && isempty(evdata{iRoi,6})
+                roilist{iRoi,3} = false;
+            end
         end
         
         % Save
-        [tmp_summary] = save_event_info(evdata, roidata, PATH, FILELIST{tmpfile}, true);
+        roiselection = [roilist{:,3}];
+        [tmp_summary] = save_event_info(evdata, roiselection, roidata, PATH, FILELIST{tmpfile}, true);
 %         FILELIST{tmpfile,3} = true;
 
         % Write all rercording summaries into master table

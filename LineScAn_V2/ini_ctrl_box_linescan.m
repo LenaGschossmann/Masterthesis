@@ -2,12 +2,12 @@ function ini_ctrl_box_linescan()
 
 % Declare globally shared variables
 global SCRSZ FNAME FONTSIZE SCMAPDDITEMS SCMAP WINSZDDITEMS WINSZ...
-    PLOTRANGE CLIMUI THRESHOLDTYPE THRESHOLD PEAKTHRESHOLD SMTHWIN...
+    PLOTRANGE CLIMUI SMTHWIN PARAMS EVDATA...
     figINFO roiINFO traceINFO FTIME CURRFILE NUMFILES SAVEPARENT...
     FULLFILENAMES IMMETA IMHW
 
 % Initiate (display) variables
-whctrl = [430 480];
+whctrl = [430 450];
 vspace = [10 20 30]; % [small bigg bigger]
 hspace = [5 15]; % [ctr-aligned rest]
 hctr = round(whctrl(1)/2);
@@ -25,13 +25,8 @@ delroibutpos = [hctr-whbutsm(1)*2-hspace(1)*2 vspace(2) whbutsm];
 showtrcbutpos = [hctr-whbutsm(1)-hspace(1) delroibutpos(2) whbutsm];
 savengobutpos = [hctr+hspace(1) delroibutpos(2) whbutsm];
 nosavengobutpos = [hctr+whbutsm(1)+hspace(1)*2 delroibutpos(2) whbutsm];
-threshtxtpos = [hspace(2) delroibutpos(2)+whbutbg(2)+vspace(1) whtxt];
-threshinpos = [hctr+hspace(2) threshtxtpos(2) whin];
-peakinpos = [threshinpos(1)+whin(1)+hspace(1) threshtxtpos(2) whin];
-threshtypetxtpos = [hspace(2) peakinpos(2)+whin(2)+vspace(1) whtxt];
-threshtyperbpos = [hctr+hspace(2) threshtypetxtpos(2) whrb;...
-    hctr+hspace(2)+whrb(1)+hspace(1) threshtypetxtpos(2) whrb];
-evsmthtxtpos = [hspace(2) threshtypetxtpos(2)+whtxt(2)+vspace(1) whtxt];
+detectbutpos = [hctr-0.75*whbutsm(1) delroibutpos(2)+delroibutpos(4)+vspace(2) whbutsm(1)*1.5 whbutsm(2)];
+evsmthtxtpos = [hspace(2) detectbutpos(2)+whtxt(2)+vspace(1) whtxt];
 evsmthinpos = [hctr+hspace(2) evsmthtxtpos(2) whin];
 roilbpos = [hctr+hspace(2) evsmthtxtpos(2)+whtxt(2)+vspace(1) whdd(1) whdd(2)*5];
 roilbtxtpos = [hspace(2) roilbpos(2)+roilbpos(4)-whtxt(2) whtxt];
@@ -62,13 +57,7 @@ showtrcbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', sho
 savengobut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', savengobutpos,'string', 'Save & Go','FONTSIZE', FONTSIZE, 'callback', {@cb_savengobut});
 nosavengobut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', nosavengobutpos,'string', 'No Save & Go','FONTSIZE', FONTSIZE, 'callback', {@cb_nosavengobut});
 
-threshtxt = uicontrol('parent', ctrlfig, 'style', 'text','position', threshtxtpos,'string', 'Threshold [s.d.]: start | peak','FONTSIZE', FONTSIZE);
-threshin = uicontrol('parent', ctrlfig, 'style', 'edit','position', threshinpos,'FONTSIZE', FONTSIZE, 'String', num2str(THRESHOLD),'Callback', {@cb_threshin});
-peakin = uicontrol('parent', ctrlfig, 'style', 'edit','position', peakinpos, 'Enable', 'off', 'FONTSIZE', FONTSIZE, 'String', num2str(PEAKTHRESHOLD),'Callback', {@cb_peakthreshin});
-
-threshtypetxt1 = uicontrol('parent', ctrlfig, 'style', 'text','position', threshtypetxtpos,'string', 'Threshold type:','FONTSIZE', FONTSIZE);
-threshtyperb1 = uicontrol('parent', ctrlfig, 'style', 'radiobutton', 'position', threshtyperbpos(1,:),'string', 'delta F', 'Value', 1,'FONTSIZE', FONTSIZE, 'callback', {@cb_threshtyperb});
-threshtyperb2 = uicontrol('parent', ctrlfig, 'style', 'radiobutton', 'position', threshtyperbpos(2,:),'string', 'sd', 'Value', 0,'FONTSIZE', FONTSIZE, 'callback', {@cb_threshtyperb});
+detectbut = uicontrol('parent', ctrlfig, 'style', 'pushbutton', 'position', detectbutpos,'string', 'Run Detection','FONTSIZE', FONTSIZE, 'callback', {@cb_detectbut});
 
 evsmthtxt = uicontrol('parent', ctrlfig, 'style', 'text','position', evsmthtxtpos,'string', 'Smoothing window [s]','FONTSIZE', FONTSIZE);
 evsmthin = uicontrol('parent', ctrlfig, 'style', 'edit','position', evsmthinpos,'FONTSIZE', FONTSIZE, 'String', num2str(SMTHWIN),'Callback', {@cb_evsmthin});
@@ -117,7 +106,7 @@ uiwait;
         else
             % Save metadata to .txt file
             disp('Metadata is written to .txt file...');
-            metapath = strcat(spath,'\', FNAME,'_metadata.txt');
+            metapath = strcat(SAVEPARENT,'\', FNAME,'_metadata.txt');
             fid = fopen(metapath,'w');
             fprintf(fid,'%s\n',IMMETA);
             fclose(fid);
@@ -176,30 +165,29 @@ uiwait;
         end
     end
 
-    function cb_threshtyperb(hObj,~)
-        if strcmp(hObj.String, 'delta F')
-            THRESHOLDTYPE = 'dF';
-            threshtyperb2.Value = 0;
-            peakin.Enable = 'off';
-        else
-            THRESHOLDTYPE = 'sd';
-            threshtyperb1.Value = 0;
-            peakin.Enable = 'on';
-        end
-    end
-
     function cb_evsmthin(hObj,~)
         SMTHWIN = str2double(get(hObj,'String'));
     end
 
-    function cb_threshin(hObj,~)
-        THRESHOLD = str2double(get(hObj,'String'));
+    function cb_detectbut(~,~)
+        [traceidx, roiidx,~] = access_trc();
+        for iRoi = 1:numel(roiidx)
+            if iRoi == 1, getui=1; else, getui=0; end
+            if roiINFO(roiidx(iRoi)).mode == 1
+                trace = traceINFO(traceidx(iRoi)).tot_binned_roi_av{1}';
+                dFoF = traceINFO(traceidx(iRoi)).tot_dFoF_roi_av{1}';
+                FoF = traceINFO(traceidx(iRoi)).tot_FoF_roi_av{1}';
+            else
+                trace = traceINFO(traceidx(iRoi)).binned_roi_av{1}';
+                dFoF = traceINFO(traceidx(iRoi)).dFoF_roi_av{1}';
+                FoF = traceINFO(traceidx(iRoi)).FoF_roi_av{1}';
+            end
+            tmpevdata = cell(1,12);
+            [tmpevdata, ~, PARAMS] = run_event_detection(tmpevdata,roiidx(iRoi), dFoF, FoF, trace,  PARAMS, FTIME, true, getui);
+            EVDATA(roiidx(iRoi),:) = tmpevdata;
+            fprintf('ROI %i: DONE.\n',iRoi);
+        end
     end
-
-    function cb_peakthreshin(hObj,~)
-        PEAKTHRESHOLD = str2double(get(hObj,'String'));
-    end
-
 
     function cb_delroibut(~,~)
         if sum([roiINFO(:).selected]) == 0 || isempty(roiINFO(1).position)
@@ -259,15 +247,16 @@ uiwait;
             figid = currfig.UserData;
             [~,figidx] = find([figINFO(:).IDs] == figid);
             % Save
-            savedir = strcat(SAVEPARENT, '\', FNAME, '\');
+            savedir = strcat(SAVEPARENT, '\',FNAME,'\');
             if ~exist(savedir,'dir'), mkdir(savedir); end
-            savepointer = strcat(savedir,FNAME,'_');
+%             savepointer = strcat(savedir,FNAME,'_');
+            savepointer = savedir;
             for iE = 1: size(traceINFO,2), traceINFO(iE).frametime = FTIME; end
-            save(strcat(savepointer, '_figure_info', '.mat'), 'figINFO');
-            save(strcat(savepointer, '_roi_info', '.mat'), 'roiINFO');
-            save(strcat(savepointer, '_traces_info', '.mat'), 'traceINFO');
+            save(strcat(savepointer, FNAME, '_figure_info', '.mat'), 'figINFO');
+            save(strcat(savepointer, FNAME,'_roi_info', '.mat'), 'roiINFO');
+            save(strcat(savepointer, FNAME,'_traces_info', '.mat'), 'traceINFO');
             save_files(savepointer, figidx, 'all');
-            
+                       
             % Open next file
             CURRFILE = CURRFILE +1;
             if CURRFILE > NUMFILES

@@ -441,7 +441,7 @@ end
 function process_batch(file_idx)
 global PATH FILELIST PARAMS
 nfiles = numel(file_idx);
-xall = 1:0.1:3;
+xall = 1.3:0.1:2.3;
 results = NaN(numel(nfiles),numel(xall));
 for xT = 1:numel(xall)
     for iFile = 1:nfiles
@@ -462,7 +462,7 @@ for xT = 1:numel(xall)
         
         % Detect
         [evdata, detroi, PARAMS] = ThreshRamp_run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces,...
-            97, 1.75, xall(xT), PARAMS, roidata.frametime_s, true);
+            99, 1.5, xall(xT), PARAMS, roidata.frametime_s, true);
         
         % Save
         results(iFile, xT) = ThreshRamp_save_event_info(evdata, roidata, PATH, FILELIST{tmpfile});
@@ -470,7 +470,7 @@ for xT = 1:numel(xall)
     end
 end
 results(sum(results,2)==0,:) = [];
-results = [ repelem(97, numel(xall)); repelem(1.75, numel(xall));xall; results];
+results = [ repelem(99, numel(xall)); repelem(1.5, numel(xall));xall; results];
 res_xls = strcat(PATH, '\ThreshRamp.xlsx'); if isa(res_xls,'cell'), res_xls=res_xls{1};end
 writematrix(results, res_xls);
 

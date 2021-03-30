@@ -3,7 +3,9 @@ function update_fig()
 
 % Declare globally shared variables
 global WHFIG FONTSIZE SCMAP WINSZ PLOTRANGE CLIMRAW CLIMUI figINFO...
-    ROICNTER IMHW COMPOSITE2D FTIME
+    ROICNTER IMHW COMPOSITE2D FTIME dFWIN
+
+deltawinsz = round(dFWIN/FTIME);
 
 figures = get(groot,'Children');
 findfig = strncmp({figures(:).Name}, 'Fig',3);
@@ -28,7 +30,9 @@ positionspur = [positionspul(1)+positionspul(3)+hspace positionspbl(2)+positions
 % Call Analysis functions
 rawmtrx = COMPOSITE2D(PLOTRANGE(1):PLOTRANGE(2),:);
 averaged = average_linescan(rawmtrx, WINSZ);
-[~, dFoF] = rollBase_dFoF(averaged);
+lin_averaged = averaged';
+[~, dFoF] = rollBase_dFoF(lin_averaged,deltawinsz,size(lin_averaged,2), 'roll');
+dFoF = dFoF';
 
 % Plot data
 scraw = scale_data(rawmtrx, CLIMRAW);

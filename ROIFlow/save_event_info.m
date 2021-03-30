@@ -1,7 +1,8 @@
-function rec_summary = save_event_info(eventdata, roidata, path, filename, return_summary)
+function rec_summary = save_event_info(eventdata, roiselection, roidata, path, filename, return_summary)
 
 %% Unpack & Initialize
-save_rois = find(cellfun(@isempty, eventdata(:,7))==0);
+roiselection = reshape(roiselection,[numel(roiselection) 1]);
+save_rois = find(roiselection == 1 & cellfun(@isempty, eventdata(:,7))==0);
 
 nrois = numel(save_rois);
 roinames = cell(nrois,1);
@@ -38,8 +39,8 @@ warning('off','MATLAB:xlswrite:AddSheet');
 filename=filename(9:end-4);
 savepath = fullfile(path,filename);
 roipath = strcat(savepath,'\ROIs\'); if isa(roipath,'cell'), roipath=roipath{1};end
-if ~isdir(savepath), mkdir(savepath); end
-if ~isdir(roipath), mkdir(roipath); end
+if ~isfolder(savepath), mkdir(savepath); end
+if ~isfolder(roipath), mkdir(roipath); end
 
 trace_xls = strcat(savepath, '\TRACES_', filename,'.xlsx'); if isa(trace_xls,'cell'), trace_xls=trace_xls{1};end
 crptrace_xls = strcat(savepath, '\CROPTRC_', filename,'.xlsx'); if isa(crptrace_xls,'cell'), crptrace_xls=crptrace_xls{1};end
@@ -173,7 +174,8 @@ if ~isempty(save_rois)
         saveas(f1,roi_png); close(f1);
         
         % Save ROI coordinates as .roi file
-        roi_name = writeImageJROI(boundary, 3, 0,0,0, roipath, iRoi);
+        roi_name = strcat('roi_',num2str(iRoi));
+        writeImageJROI(boundary, 3, 0,0,0, roipath, roi_name);
         roi_names_cell{iRoi} = strcat(roipath, roi_name,'.roi');
     end
     
@@ -183,7 +185,7 @@ if ~isempty(save_rois)
     distance_mtrx = ones(nrois,nrois);
     fill_mtrx = true(nrois,nrois);
     roi_mtrx = cell(nrois,nrois);
-    synchro_dist_mtrx = NaN(sum(1:nrois-1),2);
+    synchro_dist_mtrx = NaN(sum(1:nrois-1),4);
     cnt = 1;
     for iRoi1 = 1:nrois-1
         tmproi1 = save_rois(iRoi1);
@@ -204,7 +206,8 @@ if ~isempty(save_rois)
             synchro_mtrx(iRoi1,iRoi2) =  r;
             fill_mtrx(iRoi1,iRoi2) = false;
             roi_mtrx{iRoi1,iRoi2} = strcat(roinames{iRoi1},'-',roinames{iRoi2});
-            synchro_dist_mtrx(cnt,1) = r; synchro_dist_mtrx(cnt,2) = dist;
+            synchro_dist_mtrx(cnt,1) = tmproi1; synchro_dist_mtrx(cnt,2) = tmproi2;
+            synchro_dist_mtrx(cnt,3) = r; synchro_dist_mtrx(cnt,4) = dist;
             cnt = cnt+1;
         end
     end
@@ -215,8 +218,10 @@ if ~isempty(save_rois)
     trsp_mtrx = roi_mtrx';
     roi_mtrx(fill_mtrx) = trsp_mtrx(fill_mtrx);
     synchro_dist_tbl = table();
-    synchro_dist_tbl.Dist_um = synchro_dist_mtrx(:,2);
-    synchro_dist_tbl.PearsonR = synchro_dist_mtrx(:,1);
+    synchro_dist_tbl.ROI_1 = synchro_dist_mtrx(:,1);
+    synchro_dist_tbl.ROI_2 = synchro_dist_mtrx(:,2);
+    synchro_dist_tbl.Dist_um = synchro_dist_mtrx(:,4);
+    synchro_dist_tbl.PearsonR = synchro_dist_mtrx(:,3);
     
     %% Calculate Synchronicity Histogram
     for iT = 1:nframes

@@ -36,7 +36,7 @@ for iRoi = 1:nrois
     tmptrc = traces(tmproi,:);
     
     %% All Negativ values
-    neg_dFoF_vals = abs(tmpdFoF(tmpdFoF<0));
+%     neg_dFoF_vals = abs(tmpdFoF(tmpdFoF<0));
 %     perc_neg_val = prctile(neg_dFoF_vals, perc_threshold);
 %     max_neg_val = max(neg_dFoF_vals);
     %         mean_neg_amp = mean(neg_dFoF_vals);

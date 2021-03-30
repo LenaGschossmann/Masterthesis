@@ -2,9 +2,8 @@ function [params] = get_predefined_params(varargin)
 %% Set predefined parameters for the automated analysis of spontaneous events in imaging data
 % Possible input as name-value pair:
 % ['fbase_winsize_s', 'bg_perc', 'perc_thresh', 'perc_range', 'perc_cutoff', 'perc_fac',
-% 'connc_px_thresh', 'fill_thresh', 'perc_thresh', 'safe_fac',
-% 'excl_prctile', 'critical_fac', 'overlap_thresh', 'subtract_perc',
-% 'ev_perc_thresh', 'ev_fac', 'ev_save_fac', 'peak_win']
+% 'connc_px_thresh', 'fill_thresh', 'ev_perc_thresh', 'safe_fac', 'critical_fac',
+%'overlap_thresh', 'subtract_perc', 'peak_win']
 
 params = struct();
 
@@ -83,7 +82,7 @@ else, params.peak_win_ms = 150;
 end
 % Percentile and factor for detecting events in ROI average trace 
 if ~isempty(args) && any(strcmp(args(1,:),'ev_perc_thresh'))
-    params.ev_perc_thresh = args{2,strncmp(args(1,:),'ov', 2)};
+    params.ev_perc_thresh = args{2,strncmp(args(1,:),'ev', 2)};
 else, params.ev_perc_thresh = 97;
 end
 % if ~isempty(args) && any(strcmp(args(1,:),'ev_fac'))

@@ -9,7 +9,7 @@ addpath(genpath(pp)), clear('p','pp');
 nfiles = size(infostruct,2);
 bleach_corr_win_s = 5;
 t_proc = 600;
-dark_count = [];
+dark_count = 0.528155;
 rectype = questdlg('Select type of recording','Recording type','Confocal', '2PM', 'Confocal');
 
 %% Set parameters dependend on recording type if not given as input
@@ -48,16 +48,15 @@ for iF = 1:nfiles
     %     else, params.connc_px_thresh = 8;
     %     end
     
-    %% Import file
-    [inputim] = read_timeseries(filepointer, 'load');
-    inputim = double(inputim);
-    
-    %% Motion Correction
+    %% Import file (& Motion Correction)
     if mocorr
         disp('Run motion correction...');
-        inputim = run_mocorr(path, filename, true);
-        inputim = inputim{1};
+        inputim = run_mocorr(filepointer, true, true);
+%         inputim = inputim{1};
+    else
+        [inputim] = read_timeseries(filepointer, 'load');
     end
+    inputim = double(inputim);
     
     imsize = size(inputim);
     n_px = imsize(1)*imsize(2);
@@ -93,7 +92,7 @@ for iF = 1:nfiles
         [~,idx] = min(abs(c_cum - params.subtract_perc));
         subtract_value = e(idx);
     else
-        subtract_value = 0; %dark_count;
+        subtract_value = dark_count;
     end
     
     corr_traces = corr_traces - subtract_value;
@@ -102,11 +101,11 @@ for iF = 1:nfiles
     disp('Calculate dF over F stack...');
     [~, dFoFtraces] = rollBase_dFoF(corr_traces, winsize,n_frames, 'grand');
     
-%     tmpim = reshape(dFoFtraces,[imsize(1) imsize(2) n_frames]);
-%     tmpp = strcat(filepath, '\dFoF_', infostruct(iF).name, '.tif');
-%     for idx = 1:n_frames
-%         imwrite(uint16(tmpim(:,:,idx)), tmpp, 'tiff', 'WriteMode', 'append');
-%     end
+    tmpim = reshape(dFoFtraces,[imsize(1) imsize(2) n_frames]);
+    tmpp = strcat(filepath, '\dFoF_', infostruct(iF).name, '.tif');
+    for idx = 1:n_frames
+        imwrite(uint16(tmpim(:,:,idx)), tmpp, 'tiff', 'WriteMode', 'append');
+    end
     
 %     %% Obtain threshold value
 %     tic;

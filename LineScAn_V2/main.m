@@ -5,7 +5,8 @@
 % pp = fullfile(pp,'OpenBFiles');
 % addpath(pp); clear('p', 'pp');
 
-addpath(genpath('G:\Lena\Masterthesis\In vivo\LenaMatlabCode\OpenBFiles'));
+addpath(genpath('C:\Users\lena_\Projects\code\Masterthesis\OpenBFiles\'));
+addpath('C:\Users\lena_\Projects\code\Masterthesis\ROIFlow\');
 
 close all;
 

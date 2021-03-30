@@ -1,4 +1,4 @@
-function [dFtraces, dFoFtraces] = rollBase_dFoF(input)
+function [dFtraces, dFoFtraces] = donotuse_rollBase_dFoF(input)
 %% Calculation of a rolling baseline dFoF stack
 global dFWIN FTIME
 

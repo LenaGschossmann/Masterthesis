@@ -1,4 +1,4 @@
-function [outputdata] = run_mocorr(path, filelist, output)
+function [outputdata] = run_mocorr(filepointer, output, save)
 %% **** Run NoRMCorre Motion Correction ****
 % Pnevmatikakis, E. A., & Giovannucci, A. (2017). NoRMCorre: An online algorithm for piecewise rigid motion correction of calcium imaging data. Journal of neuroscience methods, 291, 83-94.
 
@@ -9,7 +9,8 @@ wd = pwd(); p = split(wd,'\'); p=p(1:end-1); pp = []; for ii = 1:numel(p), pp = 
 pp = fullfile(pp,'OpenBFiles');
 addpath(pp); clear('p', 'pp');
 
-outputdata = cell(size(filelist, 2),1);
+outputdata = cell(1,1);
+[filepath,filename,~] = fileparts(filepointer);
 
 %% Motion correction
 % Readout and cropping
@@ -43,34 +44,29 @@ options.fs = 10;                                 % Set frequency of timeseries
 
 % NoRMCorre
 tic;
-for i = 1:size(filelist, 2)                         % not included
-    close all                                   % reading filelist
-    disp(['Working on ' filelist{i}])
-    nam = [path filelist{i}];
-    [Data,~] = readdata(nam,options);
-    
-    options_nonrigid = NoRMCorreSetParms('d1',size(Data,1),'d2',size(Data,2),...
-        'grid_size',[32,32],'mot_uf',4,'bin_width',200,...
-        'max_shift',15,'max_dev',3,'us_fac',50,'init_batch',200);
-    
-    [Data,shifts,template,options_nonrigid] = normcorre_batch(Data,options_nonrigid); %channel used to perform the movement correction
-    
-    % Apply shifts to the red channel (channel to which movement correction withh be applied)
-    Data = apply_shifts(Data,shifts,options_nonrigid);
-    
-    % Save
-    tmpName = regexp(filelist{i}, '\', 'split');
-    tmpName = tmpName{end};
-    tmpName = tmpName(1:end-4);
-    name = strcat(tmpName, 'MoCor','.tif');
-    name = fullfile(path, name);
-    imwrite(uint16(Data(:, :, 1)), name, 'tif', 'WriteMode', 'overwrite');
+close all                                   % reading filelist
+disp(['Working on ' filename])
+[Data,~] = readdata(filepointer,options);
+
+options_nonrigid = NoRMCorreSetParms('d1',size(Data,1),'d2',size(Data,2),...
+    'grid_size',[32,32],'mot_uf',4,'bin_width',200,...
+    'max_shift',15,'max_dev',3,'us_fac',50,'init_batch',200);
+
+[Data,shifts,template,options_nonrigid] = normcorre_batch(Data,options_nonrigid); %channel used to perform the movement correction
+
+% Apply shifts to the red channel (channel to which movement correction withh be applied)
+Data = apply_shifts(Data,shifts,options_nonrigid);
+
+% Save
+if save
+    tmpName = strcat(filepath,'\',filename,'_MoCorr.tiff'); if isa(tmpName,'cell'), tmpName = tmpName{1}; end
+    imwrite(uint16(Data(:, :, 1)), tmpName, 'tif', 'WriteMode', 'overwrite');
     for j = 2: size(Data,3)
-        imwrite(uint16(Data(:, :, j)), name, 'tif', 'WriteMode', 'append');
+        imwrite(uint16(Data(:, :, j)), tmpName, 'tif', 'WriteMode', 'append');
     end
-    
-    if output, outputdata{i,1} = Data; end
 end
+
+if output, outputdata = Data; end
 toc
 
 end

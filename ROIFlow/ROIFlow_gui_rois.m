@@ -1,5 +1,8 @@
 %% User Interfacce for ROIFlow Analysis for 2PM and Confocal data of spontaneous events %%
 
+clear all;
+addpath(genpath('C:\Users\lena_\Projects\code\Masterthesis\OpenBFiles'));
+
 %% Parameters
 global FONTSIZE SELECTED FILELIST NFILES INFOSTRUCT FTINFO SCALEINFO BGINFO AIPLIST...
     but_2 but_4 but_5 but_6  list_1 txt_4 txtlist_3 txtlist_4  txtlist_5 txtlist_6...
