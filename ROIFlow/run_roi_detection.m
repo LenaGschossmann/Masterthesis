@@ -18,7 +18,7 @@ if strncmp(rectype,'C',1)
     if isempty(params)
         params = get_predefined_params('connc_px_thresh', 13, 'dFoF_prctile_1', 98,'dFoF_prctile_2', 20,...
             'perc_thresh',90, 'perc_fac', 1.15,'overlap_thresh',0.5, 'fill_thresh',0.3);
-    end
+         end
 else
     if isempty(params)
         params = get_predefined_params('connc_px_thresh',15,'dFoF_prctile_1', 98,'dFoF_prctile_2', 10,...

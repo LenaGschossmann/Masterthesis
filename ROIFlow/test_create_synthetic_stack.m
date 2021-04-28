@@ -39,19 +39,21 @@ for idx = 1:n_frames
 end
 
 %% Create synthetic control trace
-% % 2PM
-% % A896_ts_2: roi6, roi10, roi11, roi12, roi17
+% 2PM
+% A896_ts_2: roi6, roi10, roi11, roi12, roi17
 % mu = [2.868 2.441 3.312 3.407 4.139];
 % sigma = [0.322 0.318 0.311 0.797 2.323];
-% nf = 3000;
-% p='C:\Users\lena_\Projects\iGluSnFR\Analysis\Tests\LenaMatlabCode\DD_ROI_detection\ev_detection\test_thresholds\Ctrl_traces\2pm_A896.xlsx';
+mu = [0.0210159]; % dF/F: ts_2 roi7
+sigma = [0.684875]; %dF/F: ts2 roi7
+nf = 3000;
+p='C:\Users\lena_\Projects\iGluSnFR\Analysis\Tests\LenaMatlabCode\DD_ROI_detection\ev_detection\test_thresholds\Ctrl_traces\2pm_A896_ts7.xlsx';
 
-% Conf
+% %Conf
 % A906_sl_4_ts_1: roi3, roi4, roi5, roi6, roi1_8
-mu = [0.424 0.425 0.431 0.443 0.546];
-sigma = [0.048 0.019 0.07 0.475 0.222];
-nf = 1200;
-p='C:\Users\lena_\Projects\iGluSnFR\Analysis\Tests\LenaMatlabCode\DD_ROI_detection\ev_detection\test_thresholds\Ctrl_traces\conf_A906.xlsx';
+% mu = [0.424 0.425 0.431 0.443 0.546];
+% sigma = [0.048 0.019 0.07 0.475 0.222];
+% nf = 1200;
+% p='C:\Users\lena_\Projects\iGluSnFR\Analysis\Tests\LenaMatlabCode\DD_ROI_detection\ev_detection\test_thresholds\Ctrl_traces\conf_A906.xlsx';
 
 rndtrc = NaN(numel(mu), nf);
 for ii =1:numel(mu), rndtrc(ii,:) = mu(ii)+randn(1,nf).*sigma(ii); end

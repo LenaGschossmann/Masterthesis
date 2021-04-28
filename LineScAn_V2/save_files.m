@@ -58,11 +58,11 @@ if ~figINFO(fi).saved
         % .tifs
         set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
         pause(0.2);
-        vals = COMPOSITE2D(pr(1):pr(2),:);
-        imwrite(uint16(vals), strcat(sp,'raw_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        vals = averaged(pr(1):pr(2),:);
-        imwrite(uint16(vals), strcat(sp,'AV_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        vals = alldFoF(pr(1):pr(2),:);
+        vals = COMPOSITE2D;
+        imwrite(uint16(vals), strcat(sp,'raw_range.tif'), 'tif');
+        vals = averaged;
+        imwrite(uint16(vals), strcat(sp,'AV_','bin_',num2str(wsz),'.tif'), 'tif');
+        vals = alldFoF;
         tic
         writematrix(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.csv'));
         toc

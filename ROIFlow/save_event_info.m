@@ -159,7 +159,7 @@ if ~isempty(save_rois)
         roi_summary(iRoi).Event_confidence = eventdata{tmproi,12}(1)/sum(eventdata{tmproi,12});
         roi_summary(iRoi).IEI_Mean = mean(tmpieis);
         roi_summary(iRoi).CV_IEI = std(tmpieis)/mean(tmpieis);
-        roi_summary(iRoi).EvRate = nevents/(nframes*ft);
+        roi_summary(iRoi).EvRate = nevents*60/(nframes*ft);
         roi_summary(iRoi).Area_um = roidata.roi_area_um(tmproi);
         roi_summary(iRoi).StructNorm_Area = roidata.roi_area_um(tmproi)/roidata.dendritic_area_um;
         roi_summary(iRoi).Ctr_X_um = roidata.roi_centroids_um(tmproi,1);

@@ -22,7 +22,7 @@ shownonev = true;
 PARAMS = get_predefined_params();
 TRCMODE = 'dFoF';
 PLOTMODE = 'aip';
-AUTO = true;
+AUTO = false;
 BATCH = true;
 
 %% GUI Parameters
