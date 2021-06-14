@@ -1,46 +1,29 @@
-function [traceidx] = create_trc(figidx, roiidx, iRoi, traceidx, pr, wsz)
+function [traceidx] = create_trc(roiidx, iRoi, traceidx)
 
 % Declare globally shared variables
-global SMTHWIN figINFO roiINFO traceINFO IMHW FTIME COMPOSITE2D
+global SMTHWIN roiINFO traceINFO COMPOSITE2D WINSZ PLOTRANGE
 
-if isempty(traceINFO(1).figID), tmpidx = 1; else, tmpidx = size(traceINFO,2)+1; end
-traceINFO(tmpidx).figID = figINFO(figidx).IDs;
+if isempty(traceINFO(1).roiID), tmpidx = 1; else, tmpidx = size(traceINFO,2)+1; end
 traceINFO(tmpidx).roiID = roiINFO(roiidx(iRoi)).ID;
-traceINFO(tmpidx).fig_params{1,1} = pr;
-traceINFO(tmpidx).fig_params{2,1} = wsz;
-traceINFO(tmpidx).fig_params{3,1} = SMTHWIN;
+traceINFO(tmpidx).params{2,1} = WINSZ;
+traceINFO(tmpidx).params{3,1} = SMTHWIN;
 traceINFO(tmpidx).save = true;
 traceINFO(tmpidx).currmode = '  Average';
 traceINFO(tmpidx).showtot = 0;
+
 % Call Analysis functions
 disp('Bin px traces...');
-averaged = average_linescan(COMPOSITE2D, wsz);
-markedroi = averaged(pr(1):pr(2),:);
-scmarkedroi = mark_rois(markedroi,pr, roiidx(iRoi));
+averaged = average_linescan(COMPOSITE2D, WINSZ);
+markedroi = averaged(PLOTRANGE(1):PLOTRANGE(2),:);
+scmarkedroi = mark_rois(markedroi, roiidx(iRoi));
 %         scmarkedroi = scale_data(markedroi, climraw);
 disp('Smooth trace...');
 smoothed = smooth_data(averaged, SMTHWIN);
-[tmpvals,tmpdFoF,tmpFoF yrange, allvals, alldFoF, allFoF] = calc_roi_av_trace(roiidx(iRoi), smoothed, pr);
-if isempty(yrange)
-    traceINFO(tmpidx).binned_roi_av = {NaN};
-    traceINFO(tmpidx).dFoF_roi_av = {NaN};
-    traceINFO(tmpidx).FoF_roi_av = {NaN};
-    traceINFO(tmpidx).timestamp = {NaN};
-    traceINFO(tmpidx).plotmarked = {NaN};
-    msgbox(strcat('ROI # ', num2str(iRoi), ' lies outside the plotted range!'));
-else
-    traceidx = [traceidx tmpidx];
-    roiyrange = [(pr(1)+yrange(1)-1):(pr(1)+yrange(2)-1)];
-    traceINFO(tmpidx).binned_roi_av = {tmpvals(roiyrange)};
-    traceINFO(tmpidx).dFoF_roi_av = {tmpdFoF(roiyrange)};
-    traceINFO(tmpidx).FoF_roi_av = {tmpFoF(roiyrange)};
-    traceINFO(tmpidx).plotmarked = {scmarkedroi};
-    traceINFO(tmpidx).timestamp = {((pr(1)+yrange(1)-1)*FTIME:FTIME:(pr(1)+yrange(2)-1)*FTIME)'};
-end
-if roiINFO(roiidx(iRoi)).mode == 1
-    traceINFO(tmpidx).tot_binned_roi_av = {allvals};
-    traceINFO(tmpidx).tot_dFoF_roi_av = {alldFoF};
-    traceINFO(tmpidx).tot_FoF_roi_av = {allFoF};
-    traceINFO(tmpidx).tot_timestamp = {(1*FTIME:FTIME:IMHW(1)*FTIME)'};
-end
+[allvals, alldFoF, allFoF, alldF] = calc_roi_av_trace(roiidx(iRoi), smoothed);
+traceidx = [traceidx tmpidx];
+traceINFO(tmpidx).roi_av = {allvals};
+traceINFO(tmpidx).dFoF_roi_av = {alldFoF};
+traceINFO(tmpidx).FoF_roi_av = {allFoF};
+traceINFO(tmpidx).dF_roi_av = {alldF};
+traceINFO(tmpidx).plotmarked = {scmarkedroi};
 end

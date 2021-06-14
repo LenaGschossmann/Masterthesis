@@ -1,8 +1,8 @@
-function save_files(sp, fi, mode)
+function save_files(sp, mode)
 
 % Declare globally shared variables
-global POSITIONFIG FONTSIZE CLIMRAW THRESHOLD PEAKTHRESHOLD SMTHWIN...
-    figINFO roiINFO traceINFO IMHW FTIME COMPOSITE2D EVDATA dFWIN FNAME
+global POSITIONFIG FONTSIZE PLOTRANGE WINSZ SMTHWIN...
+    roiINFO traceINFO IMHW FTIME COMPOSITE2D EVDATA dFSHIFT dFWIN CRPPRESEC CRPPOSTSEC
 
 diapos = [POSITIONFIG(1)+POSITIONFIG(3)/2 POSITIONFIG(2)+POSITIONFIG(4)/2 200 100];
 diafig = figure('Position',diapos,'Name', 'Saving','toolbar', 'none', 'menu', 'none');
@@ -12,10 +12,8 @@ diatxt = uicontrol('parent', diafig, 'style', 'text', 'position', [10 5 180 80],
 pause(0.5);
 
 % Prepare variables
-pr = figINFO(fi).plotrange;
-wsz = figINFO(fi).avwinsize;
-prepts = round(0.5/FTIME);
-postpts = round(1.5/FTIME);
+prepts = round(CRPPRESEC/FTIME);
+postpts = round(CRPPOSTSEC/FTIME);
 totpts = prepts+postpts+1;
 totevents = 0;
 tblcnt = 1;
@@ -41,39 +39,21 @@ eventinfo_xls = strcat(sp, '\EVENTS.xlsx'); if isa(eventinfo_xls,'cell'), eventi
 summary_xls = strcat(sp, '\SUMMARY.xlsx'); if isa(summary_xls,'cell'), summary_xls=summary_xls{1};end
 ev_struct = strcat(sp, '\EVSTRCT.mat'); if isa(ev_struct,'cell'), ev_struct=ev_struct{1};end
 
-if ~figINFO(fi).saved
-    answer = questdlg('Do you want to save the 2D matrix as .tif ?', 'Saving', 'Yes','No','Yes');
-    if strcmp(answer, 'Yes')
-        % Save ROI-unrelated stuff
-        averaged = average_linescan(COMPOSITE2D, wsz);
-        lin_averaged = averaged';
-        [~, alldFoF] = rollBase_dFoF(lin_averaged,deltawinsz,size(lin_averaged,2), 'roll');
-        alldFoF = alldFoF';
-        %         % .csv
-        %         set(diatxt,'string',[diatxtinfo,{'','...create .csv files.'}]);
-        %         pause(0.2);
-        %         writematrix(COMPOSITE2D, strcat(sp,'raw.csv'));
-        %         writematrix(averaged, strcat(sp,'AV_bin_',num2str(wsz), '.csv'));
-        %         writematrix(dFoF, strcat(sp,'dFoF_bin_',num2str(wsz), '.csv'));
-        % .tifs
-        set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
-        pause(0.2);
-        vals = COMPOSITE2D;
-        imwrite(uint16(vals), strcat(sp,'raw_range.tif'), 'tif');
-        vals = averaged;
-        imwrite(uint16(vals), strcat(sp,'AV_','bin_',num2str(wsz),'.tif'), 'tif');
-        vals = alldFoF;
-        tic
-        writematrix(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.csv'));
-        toc
-        %         fid = fopen(strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)), '.txt'), 'w');
-        %         fwrite(fid, vals, 'double');
-        %         fclose(fid);
-        %         imwrite(vals, strcat(sp,'dFovF_','bin_',num2str(wsz),'_range_', num2str(pr(1)),'-',num2str(pr(2)),'.tif'), 'tif');
-        figINFO(fi).saved = true;
-    end
-else
-    answer = 'No';
+answer = questdlg('Do you want to save the 2D matrix as .tif ?', 'Saving', 'Yes','No','Yes');
+if strcmp(answer, 'Yes')
+    % Save ROI-unrelated stuff
+    set(diatxt,'string',[diatxtinfo,{'','...create .tif files.'}]);
+    pause(0.2);
+    vals = COMPOSITE2D;
+    imwrite(uint16(vals), strcat(sp,'raw.tif'), 'tif');
+    
+    averaged = average_linescan(COMPOSITE2D, WINSZ);
+    vals = averaged;
+    imwrite(uint16(vals), strcat(sp,'AV_','bin_',num2str(WINSZ),'.tif'), 'tif');
+    
+    lin_averaged = averaged';
+    [~, ~,alldFoF] = rollBase_dFoF(lin_averaged,deltawinsz,dFSHIFT, 'roll');
+    writematrix(alldFoF', strcat(sp,'dFoF_','bin_',num2str(WINSZ),'_range_', num2str(PLOTRANGE(1)),'-',num2str(PLOTRANGE(2)), '.csv'));
 end
 
 % Determine ROIs to save
@@ -88,20 +68,15 @@ end
 
 % Check if data already exist
 traceidx = zeros(size(saverois));
-isline = false(size(saverois));
 
 for iRoi = 1:numel(saverois)
-    if roiINFO(iRoi).mode == 1, isline(iRoi) = true; end
-    figid = figINFO(fi).IDs;
-    existidx1 = [traceINFO(:).figID] == figid;
-    existidx2 = [traceINFO(:).roiID] == roiINFO(saverois(iRoi)).ID;
-    if any(existidx1 & existidx2)
-        existidx = find(existidx1 & existidx2);
+    existbin = [traceINFO(:).roiID] == roiINFO(saverois(iRoi)).ID;
+    if any(existbin)
+        existidx = find(existbin);
         iEx = 1;
         while iEx <= numel(existidx)
-            if all(traceINFO(existidx(iEx)).fig_params{1,1} == pr) &&...
-                    traceINFO(existidx(iEx)).fig_params{2,1} == wsz &&...
-                    traceINFO(existidx(iEx)).fig_params{3,1} == SMTHWIN
+            if traceINFO(existidx(iEx)).params{2,1} == WINSZ &&...
+                  traceINFO(existidx(iEx)).params{3,1} == SMTHWIN
                 traceidx(iRoi) = existidx(iEx);
                 break;
             end
@@ -109,8 +84,7 @@ for iRoi = 1:numel(saverois)
         end
     end
     if traceidx(iRoi) == 0
-        if isline(iRoi), tmppr = [1 IMHW(1)]; else, tmppr = pr; end
-        [traceidx] = create_trc(figid, saverois, iRoi, traceidx, tmppr, wsz);
+        [traceidx] = create_trc(saverois, iRoi, traceidx);
     end
 end
 
@@ -118,31 +92,35 @@ end
 for iRoi = 1:numel(saverois)
     tmproi = saverois(iRoi);
     save_idx = EVDATA{tmproi,7};
+    roiid = roiINFO(tmproi).ID;
+    
+    set(diatxt,'string',[diatxtinfo,{'','...save ROI # ', num2str(roiid)}]);
+    pause(0.2);
+    
+    avvals = traceINFO(traceidx(iRoi)).roi_av{1};
+    dFoFvals = traceINFO(traceidx(iRoi)).dFoF_roi_av{1};
+    FoFvals = traceINFO(traceidx(iRoi)).FoF_roi_av{1};
+    dFvals = traceINFO(traceidx(iRoi)).dF_roi_av{1};
+    timestamp = (1*FTIME:FTIME:IMHW(1)*FTIME)';
+    
+    scmarkedroi = traceINFO(traceidx(iRoi)).plotmarked{1};
+    nframes = size(avvals,1);
+    
+    writeMtrx = [timestamp avvals FoFvals dFvals dFoFvals];
+    writeMtrx = array2table(writeMtrx, 'VariableNames', {'frametime_s', 'ROI_average', 'ROI_FoF', 'ROI_dF','ROI_dFoF'});
+    imwrite(uint16(scmarkedroi), strcat(sp,'ROI_',num2str(roiid),'.tif'), 'tif');
+    writetable(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'.csv'));
+    
+    roiname = sprintf('ROI_%i',saverois(iRoi));
+    roi_summary(cntRoi).ROI = roiname;
+    roi_summary(cntRoi).Trc_Mean = mean(avvals);
+    roi_summary(cntRoi).Trc_SD = std(avvals);
+    roi_summary(cntRoi).Trc_dFoF_SD = std(dFoFvals);
+    roi_summary(cntRoi).Threshold = EVDATA{tmproi,10}(1);
+    roi_summary(cntRoi).Trc_SNR = roi_summary(cntRoi).Amp_dFoF_Mean/roi_summary(cntRoi).Trc_dFoF_SD;
+    
+    %% Save events
     if ~isempty(save_idx)
-        roiid = roiINFO(tmproi).ID;
-        roiname = sprintf('ROI_%i',saverois(iRoi));
-        
-        set(diatxt,'string',[diatxtinfo,{'','...save ROI # ', num2str(roiid)}]);
-        pause(0.2);
-        
-        if isline(iRoi)
-            avvals = traceINFO(traceidx(iRoi)).tot_binned_roi_av{1};
-            dFoFvals = traceINFO(traceidx(iRoi)).tot_dFoF_roi_av{1};
-            timestamp = traceINFO(traceidx(iRoi)).tot_timestamp{1};
-        else
-            avvals =  traceINFO(traceidx(iRoi)).binned_roi_av{1};
-            dFoFvals = traceINFO(traceidx(iRoi)).dFoF_roi_av{1};
-            timestamp = traceINFO(traceidx(iRoi)).timestamp{1};
-        end
-        scmarkedroi = traceINFO(traceidx(iRoi)).plotmarked{1};
-        nframes = size(avvals,1);
-        
-        writeMtrx = [timestamp avvals dFoFvals];
-        writeMtrx = array2table(writeMtrx, 'VariableNames', {'frametime_s', 'ROI_average', 'ROI_dFoF'});
-        imwrite(uint16(scmarkedroi), strcat(sp,'AV_ROI_',num2str(roiid),'_binning_', num2str(wsz), '.tif'), 'tif');
-        writetable(writeMtrx, strcat(sp,'ROI_',num2str(roiid),'.csv'));
-        
-        %% Save events
         nevents = numel(save_idx);
         totevents = totevents+nevents;
         save_ptr = NaN(nevents,1);
@@ -192,9 +170,8 @@ for iRoi = 1:numel(saverois)
             event_info(tblcnt).IEI = tmpieis(iE);
             tblcnt=tblcnt+1;
         end
-
+        
         % ROI Event Summary
-        roi_summary(cntRoi).ROI = roiname;
         roi_summary(cntRoi).Num_Events = nevents;
         roi_summary(cntRoi).Amp_Mean = mean(EVDATA{tmproi,5}(save_ptr,3));
         roi_summary(cntRoi).Amp_FoF_Mean = mean(EVDATA{tmproi,5}(save_ptr,2));
@@ -202,18 +179,28 @@ for iRoi = 1:numel(saverois)
         roi_summary(cntRoi).Amp_SD = std(EVDATA{tmproi,5}(save_ptr,3));
         roi_summary(cntRoi).Amp_FoF_SD = std(EVDATA{tmproi,5}(save_ptr,2));
         roi_summary(cntRoi).Amp_dFoF_SD = std(EVDATA{tmproi,5}(save_ptr,1));
-        roi_summary(cntRoi).Trc_Mean = mean(avvals);
-        roi_summary(cntRoi).Trc_SD = std(avvals);
-        roi_summary(cntRoi).Trc_dFoF_SD = std(dFoFvals);
-        roi_summary(cntRoi).Threshold = EVDATA{tmproi,10}(1);
-        roi_summary(cntRoi).Trc_SNR = roi_summary(cntRoi).Amp_dFoF_Mean/roi_summary(cntRoi).Trc_dFoF_SD;
         if isempty(roi_summary(cntRoi).Amp_dFoF_Mean), roi_summary(cntRoi).Trc_SNR = NaN; end
         roi_summary(cntRoi).Event_confidence = EVDATA{tmproi,12}(1)/sum(EVDATA{tmproi,12});
         roi_summary(cntRoi).IEI_Mean = mean(tmpieis);
         roi_summary(cntRoi).CV_IEI = std(tmpieis)/mean(tmpieis);
         roi_summary(cntRoi).EvRate = nevents/(nframes*FTIME);
         cntRoi = cntRoi +1;
+    else
+        % ROI Event Summary
+        roi_summary(cntRoi).Num_Events = 0;
+        roi_summary(cntRoi).Amp_Mean = NaN;
+        roi_summary(cntRoi).Amp_FoF_Mean = NaN;
+        roi_summary(cntRoi).Amp_dFoF_Mean = NaN;
+        roi_summary(cntRoi).Amp_SD = NaN;
+        roi_summary(cntRoi).Amp_FoF_SD = NaN;
+        roi_summary(cntRoi).Amp_dFoF_SD = NaN;
+        if isempty(roi_summary(cntRoi).Amp_dFoF_Mean), roi_summary(cntRoi).Trc_SNR = NaN; end
+        roi_summary(cntRoi).Event_confidence = NaN;
+        roi_summary(cntRoi).IEI_Mean =NaN;
+        roi_summary(cntRoi).CV_IEI = NaN;
+        roi_summary(cntRoi).EvRate = NaN;
     end
+    
 end
 
 %% Recoring Summary
@@ -234,15 +221,17 @@ rec_summary.REC_time_s = nframes.*FTIME;
 
 %% Save
 % Cropped traces
-writecell(all_crp_info, crptrace_xls, 'Sheet', 'TraceInfo'); % Info: Roi ID (row 1), Event ID (row 2), Onset index (row 3), Frametime (row 4)
-writematrix(all_crp_dFoF, crptrace_xls,'Sheet', 'dFoF_traces');
-
-% Save binary traces
-writetable(struct2table(tbl_onset_binary), binary_xls, 'Sheet', 'Onset');
-writetable(struct2table(tbl_peaks_binary), binary_xls, 'Sheet', 'Peak');
-
-% Event info
-writetable(struct2table(event_info), eventinfo_xls, 'Sheet', 'Event');
+if ~isempty(save_idx)
+    writecell(all_crp_info, crptrace_xls, 'Sheet', 'TraceInfo'); % Info: Roi ID (row 1), Event ID (row 2), Onset index (row 3), Frametime (row 4)
+    writematrix(all_crp_dFoF, crptrace_xls,'Sheet', 'dFoF_traces');
+    
+    % Save binary traces
+    writetable(struct2table(tbl_onset_binary), binary_xls, 'Sheet', 'Onset');
+    writetable(struct2table(tbl_peaks_binary), binary_xls, 'Sheet', 'Peak');
+    
+    % Event info
+    writetable(struct2table(event_info), eventinfo_xls, 'Sheet', 'Event');
+end
 
 % Summary
 writetable(struct2table(roi_summary), summary_xls, 'Sheet', 'ROIs');

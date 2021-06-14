@@ -5,8 +5,14 @@
 % pp = fullfile(pp,'OpenBFiles');
 % addpath(pp); clear('p', 'pp');
 
-addpath(genpath('C:\Users\lena_\Projects\code\Masterthesis\OpenBFiles\'));
-addpath('C:\Users\lena_\Projects\code\Masterthesis\ROIFlow\');
+% addpath(genpath('C:\Users\lena_\Projects\code\Masterthesis\OpenBFiles\'));
+% addpath('C:\Users\lena_\Projects\code\Masterthesis\ROIFlow\');
+
+%% Add paths
+wd = pwd();
+p = split(wd,'\'); p = p(1:end-1); pp = []; for ii=1:numel(p), pp = strcat(pp,'\',p{ii}); end
+pp = pp(2:end);
+addpath(genpath(pp))
 
 close all;
 

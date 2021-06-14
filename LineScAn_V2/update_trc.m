@@ -1,50 +1,51 @@
-function [] = update_trc(sp2, trace, xrange, mode, showall)
+function [] = update_trc(sp2, trace, mode, showall)
 
 % Declare globally shared variables
 global FONTSIZE TRCYLABEL TRCXLABEL TRCYLABELDFOF TRCPLOTCOL1 TRCPLOTCOL2 TRCALPHA...
-    traceINFO IMHW FTIME EVDATA COMPOSITE2D
+    traceINFO IMHW FTIME EVDATA PLOTRANGE
 
-subplot(sp2);
+subplot(sp2);cla;
 tmproi = traceINFO(trace).roiID;
-pr = traceINFO(trace).fig_params{1,1};
-prtot = [1 size(COMPOSITE2D,1)];
 
 if strcmp(mode, '  Average') && ~showall
-    t1 = plot(traceINFO(trace).timestamp{1}, traceINFO(trace).binned_roi_av{1},'linewidth', 1, 'color', TRCPLOTCOL1); t1.Color(4) = TRCALPHA;
-    plot_events(tmproi, traceINFO(trace).timestamp{1}, pr,false);
+    timestamps = PLOTRANGE(1) *FTIME : FTIME : PLOTRANGE(2)*FTIME;
+    t1 = plot(timestamps, traceINFO(trace).roi_av{1}(PLOTRANGE(1):PLOTRANGE(2)),'linewidth', 1, 'color', TRCPLOTCOL1); t1.Color(4) = TRCALPHA;
+    plot_events(tmproi, PLOTRANGE, false);
     hold off;
     ylabel(TRCYLABEL); set(gca, 'FONTSIZE', FONTSIZE);
-    xlim(xrange);
+    xlim(PLOTRANGE.*FTIME);
     
 elseif strcmp(mode, '  Average') && showall
-    ylimit = [min(traceINFO(trace).binned_roi_av{1},[],'all') max(traceINFO(trace).binned_roi_av{1},[],'all')]; ylimit = [ylimit(1)-0.1*ylimit(1) ylimit(2)+0.1*ylimit(2)];
-    bgx = [traceINFO(trace).timestamp{1}(1) traceINFO(trace).timestamp{1}(1),...
-        traceINFO(trace).timestamp{1}(end) traceINFO(trace).timestamp{1}(end)];
+    timestamps = 1*FTIME : FTIME : IMHW(1)*FTIME;
+    ylimit = [min(traceINFO(trace).roi_av{1},[],'all') max(traceINFO(trace).roi_av{1},[],'all')]; ylimit = [ylimit(1)-0.1*ylimit(1) ylimit(2)+0.1*ylimit(2)];
+    bgx = [PLOTRANGE(1)*FTIME PLOTRANGE(1)*FTIME, PLOTRANGE(2)*FTIME PLOTRANGE(2)*FTIME];
     bgy = ylimit; bgy = [bgy(1) bgy(2) bgy(2) bgy(1)];
     patch(bgx, bgy, [0.3 0.3 0.3], 'FaceAlpha', 0.2, 'LineStyle','none');
     hold on;
-    t1 = plot(traceINFO(trace).tot_timestamp{1}, traceINFO(trace).tot_binned_roi_av{1},'linewidth', 1, 'color', TRCPLOTCOL1); t1.Color(4) = TRCALPHA;
-    plot_events(tmproi, traceINFO(trace).tot_timestamp{1}, prtot,false);
+    t1 = plot(timestamps, traceINFO(trace).roi_av{1},'linewidth', 1, 'color', TRCPLOTCOL1); t1.Color(4) = TRCALPHA;
+    plot_events(tmproi, [1 IMHW(1)],false);
     hold off;
     ylabel(TRCYLABEL); set(gca, 'FONTSIZE', FONTSIZE);
     xlim([1*FTIME IMHW(1)*FTIME]); ylim(ylimit);
     
 elseif strcmp(mode, '  DeltaF/F') && ~showall
-    t1 = plot(traceINFO(trace).timestamp{1}, traceINFO(trace).dFoF_roi_av{1},'linewidth', 1, 'color', TRCPLOTCOL2);
+    timestamps = PLOTRANGE(1) *FTIME : FTIME : PLOTRANGE(2)*FTIME;
+    t1 = plot(timestamps, traceINFO(trace).dFoF_roi_av{1}(PLOTRANGE(1):PLOTRANGE(2)),'linewidth', 1, 'color', TRCPLOTCOL2);
     ylabel(TRCYLABELDFOF); set(gca, 'FONTSIZE', FONTSIZE);
-    xlim(xrange);
-    plot_events(tmproi, traceINFO(trace).timestamp{1}, pr,true);
+    xlim(PLOTRANGE.*FTIME);
+    plot_events(tmproi, PLOTRANGE,true);
+    
 elseif strcmp(mode, '  DeltaF/F') && showall
-    ylimit = [min(traceINFO(trace).tot_dFoF_roi_av{1},[],'all') max(traceINFO(trace).tot_dFoF_roi_av{1},[],'all')]; ylimit = [ylimit(1)-0.1*ylimit(1) ylimit(2)+0.1*ylimit(2)];
-    bgx = [traceINFO(trace).timestamp{1}(1) traceINFO(trace).timestamp{1}(1),...
-        traceINFO(trace).timestamp{1}(end) traceINFO(trace).timestamp{1}(end)];
+    timestamps = 1*FTIME : FTIME : IMHW(1)*FTIME;
+    ylimit = [min(traceINFO(trace).dFoF_roi_av{1},[],'all') max(traceINFO(trace).dFoF_roi_av{1},[],'all')]; ylimit = [ylimit(1)-0.1*ylimit(1) ylimit(2)+0.1*ylimit(2)];
+    bgx = [PLOTRANGE(1)*FTIME PLOTRANGE(1)*FTIME, PLOTRANGE(2)*FTIME PLOTRANGE(2)*FTIME];
     bgy = ylimit; bgy = [bgy(1) bgy(2) bgy(2) bgy(1)];
     patch(bgx, bgy, [0.3 0.3 0.3], 'FaceAlpha', 0.2, 'LineStyle','none');
     hold on;
-    plot(traceINFO(trace).tot_timestamp{1}, traceINFO(trace).tot_dFoF_roi_av{1},'linewidth', 1, 'color', TRCPLOTCOL2);
+    plot(timestamps, traceINFO(trace).dFoF_roi_av{1},'linewidth', 1, 'color', TRCPLOTCOL2);
     ylabel(TRCYLABELDFOF); set(gca, 'FONTSIZE', FONTSIZE);
     xlim([1*FTIME IMHW(1)*FTIME]); ylim(ylimit);
-    plot_events(tmproi, traceINFO(trace).tot_timestamp{1}, prtot,true);
+    plot_events(tmproi, [1 IMHW(1)],true);
     hold off;
 end
 
@@ -60,7 +61,7 @@ xlabel(TRCXLABEL);
 % set(evinfo, 'string', annotxt);
 
 %% Local Callback
-    function plot_events(tmproi, tpts, pr, plotlines)
+    function plot_events(tmproi, range, plotlines)
         if plotlines
             if size(EVDATA,1) >= tmproi && ~isempty(EVDATA{tmproi,10})
                 hold on, yline(EVDATA{tmproi,10}(2)*EVDATA{tmproi,10}(3), 'cyan');
@@ -76,10 +77,10 @@ xlabel(TRCXLABEL);
             end
         end
         if size(EVDATA,1) >= tmproi && ~(isempty(EVDATA{tmproi,6}) && isempty(EVDATA{tmproi,7}))
-            save_idx = EVDATA{tmproi,7}; save_idx = save_idx(save_idx > pr(1) & save_idx < pr(2));
-            save_pts = tpts(save_idx-pr(1)+1);
-            rev_idx = EVDATA{tmproi,6}; rev_idx = rev_idx(rev_idx > pr(1) & rev_idx < pr(2));
-            rev_pts = tpts(rev_idx-pr(1)+1);
+            save_idx = EVDATA{tmproi,7}; save_idx = save_idx(save_idx > range(1) & save_idx < range(2));
+            save_pts = save_idx*FTIME;
+            rev_idx = EVDATA{tmproi,6}; rev_idx = rev_idx(rev_idx > range(1) & rev_idx < range(2));
+            rev_pts = rev_idx.*FTIME;
             hold on;
             for iEv = 1:numel(save_pts), xline(save_pts(iEv), 'Color',[0 0 0], 'LineWidth', 1.2, 'Alpha',.4); end
             for iEv = 1:numel(rev_pts), xline(rev_pts(iEv), 'r', 'LineWidth', 1.2, 'Alpha', .4); end

@@ -4,8 +4,8 @@ function set_global_vars()
 global SCRSZ WHFIG WHTRCFIG POSITIONFIG POSITIONTRCFIG POSITIONROISELECT FONTSIZE SCMAPDDITEMS...
     SCMAP WINSZDDITEMS WINSZ PLOTRANGE CLIMRAW CLIMUI TRCYLABEL TRCYLABELDFOF TRCXLABEL TRCPLOTCOL1...
     TRCPLOTCOL2 TRCALPHA THRESHLW THRESHALPHA EVPLOTCOL PLOTPEAKS...
-    figINFO roiINFO traceINFO FIGCNTER ROICNTER CURRFILE...
-    SAVEPARENT dFWIN FNAME PARAMS SMTHWIN EVDATA
+    roiINFO traceINFO FIGCNTER ROICNTER CURRFILE...
+    SAVEPARENT dFSHIFT dFWIN FNAME PARAMS SMTHWIN EVDATA CRPPRESEC CRPPOSTSEC
 
 FIGCNTER = 0;
 ROICNTER = 0;
@@ -32,16 +32,17 @@ TRCPLOTCOL2 = [0.0471 0.3137 0.4588];
 TRCALPHA = 0.5;
 THRESHLW = 1;
 THRESHALPHA = 0.7;
-dFWIN = 0.5; % [s]
+dFWIN = 1; % [s]
+dFSHIFT = 5;
+EVDATA = cell(1,12);
+CRPPRESEC = 0.5;
+CRPPOSTSEC = 1.5;
 EVPLOTCOL = [0 0.1882 0.1059];
 FNAME = '';
 PLOTPEAKS = true; % otherwise plot THRESHOLD crossings
 SMTHWIN = 0.1; % smoothing for peak detection [s]
-% roiINFO = struct(); roiINFO(1).name = []; roiINFO(1).mask = []; roiINFO(1).position = []; roiINFO(1).ID = []; roiINFO(1).selected = []; roiINFO(1).saved = []; roiINFO(1).mode = []; roiINFO(1).PLOTRANGE = [];
-roiINFO = struct('name', [], 'mask', [], 'position', [], 'ID', [], 'selected', [], 'saved', [], 'mode', [], 'plotrange', []);
-figINFO = struct('IDs', [], 'name', [], 'PLOTRANGE',[], 'cSCMAP',[], 'csclimits', [], 'avwinsize',[], 'saved',[]); % Saves parameters associated with a certain overview figure
-traceINFO = struct('figID',[], 'fig_params',[],'roiID',[], 'binned_roi_av',[],'dFoF_roi_av',[], 'timestamp',[], 'save',[], 'currmode',[], 'showtot', []);
+roiINFO = struct('name', [], 'mask', [], 'position', [], 'ID', [], 'selected', [], 'saved', [], 'plotrange', []);
+traceINFO = struct('params',[],'roiID',[], 'roi_av',[], 'FoF_roi_av',[], 'dF_roi_av',[], 'dFoF_roi_av',[], 'timestamp',[], 'save',[], 'currmode',[], 'showtot', []);
 SAVEPARENT = [];
 PARAMS =  get_predefined_params('ev_perc_thresh',97, 'critical_fac',1.7, 'safe_fac', 1.3);
-EVDATA = cell(1,12);
 end

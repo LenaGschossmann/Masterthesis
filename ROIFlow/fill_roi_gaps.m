@@ -1,11 +1,13 @@
-function [roi_idx_mtrx_filled] = fill_roi_gaps(imsize, roi_idx_mtrx, cid, num_cc, fill_thresh)
+function [roi_idx_mtrx_filled] = fill_roi_gaps(imsize, roi_idx_mtrx, cid, fill_thresh)
 
 % response_filled = zeros(imsize);
 
 roi_idx_mtrx_filled = [];
+list_cc = unique(roi_idx_mtrx(:,1));
+num_cc = numel(list_cc);
 
 for cc = 1:num_cc
-    cc_px = roi_idx_mtrx(roi_idx_mtrx(:,1) == cc,cid(1):cid(2));
+    cc_px = roi_idx_mtrx(roi_idx_mtrx(:,1) == list_cc(cc),cid(1):cid(2));
     if ~isempty(cc_px)
         response = zeros(imsize(1), imsize(2));
         for ipx = 1:size(cc_px,1), response(cc_px(ipx,1), cc_px(ipx,2)) = 1; end
@@ -54,9 +56,9 @@ for cc = 1:num_cc
             c_f = reshape(c_f, [numel(c_f) 1]);
             if diff(cid)>1
                 t = cc_px(1,3);
-                roi_idx_mtrx_filled = [roi_idx_mtrx_filled; repelem(cc,numel(r_f))' r_f c_f repelem(t,numel(r_f))'];
+                roi_idx_mtrx_filled = [roi_idx_mtrx_filled; repelem(list_cc(cc),numel(r_f))' r_f c_f repelem(t,numel(r_f))'];
             else
-                roi_idx_mtrx_filled = [roi_idx_mtrx_filled; repelem(cc,numel(r_f))' r_f c_f];
+                roi_idx_mtrx_filled = [roi_idx_mtrx_filled; repelem(list_cc(cc),numel(r_f))' r_f c_f];
             end
         else, cc=cc-1;
         end

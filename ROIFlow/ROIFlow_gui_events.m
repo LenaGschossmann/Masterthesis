@@ -105,7 +105,7 @@ global  fig2_pos trcfig sp2_1 sp2_2 imsp2_pos but2_po1_pos_1 but2_po1 trcsp2_pos
 if ishandle(trcfig), figure(trcfig);
 else, trcfig = figure('Name', 'Trace overview', 'Position', fig2_pos, 'toolbar', 'none', 'menu', 'none'); axis off;
 end
-    set(trcfig,'WindowKeyPressFcn',@keyPressCallback);
+set(trcfig,'WindowKeyPressFcn',@keyPressCallback);
 sp2_1 = subplot('Position', imsp2_pos); axis('off');
 sp2_2 = subplot('Position', trcsp2_pos); axis('off');
 but2_po1 = uicontrol('parent', trcfig, 'style', 'pushbutton','units', 'normalized','position', but2_po1_pos_1,'string', 'Discard ROI','FONTSIZE', FONTSIZE,'BackgroundColor', [.4 .4 .4], 'callback', {@cb_but2_del_roi});
@@ -186,7 +186,7 @@ if BATCH && size(FILELIST,1) > 1
     process_batch(tmpfl);
 else
     roiselection = [ALLROIS{:,3}];
-    [~] = save_event_info(EVDATA, roiselection, roidata, PATH, FILELIST{SELFILE},false);
+    [~,~,~] = save_event_info(EVDATA, roiselection, roidata, PATH, FILELIST{SELFILE},false);
     FILELIST{SELFILE,3} = true;
     % Work on next file
     if ~isempty(tmpfl)
@@ -263,7 +263,7 @@ if SELROI ~= 0
     if ishandle(sp2_2), plot_traces(SELROI, TRCMODE, DETECTED(SELROI));
     else, open_trcfig();
     end
-if DETECTED(SELROI), update_main_fig();end
+    if DETECTED(SELROI), update_main_fig();end
 end
 plot_rois(pternew, PLOTMODE, sp1a, sp1b);
 end
@@ -380,7 +380,7 @@ end
 
 if ~isempty(spb)
     axes(spb); cla;
-%     v1 = min(cellfun(@min, roidata.roi_bounds(:,2)));
+    %     v1 = min(cellfun(@min, roidata.roi_bounds(:,2)));
     v2 = max(cellfun(@max, roidata.roi_bounds(:,2)));
     if v2 > 12 && v2 < 40
         stepsize = 5;
@@ -455,72 +455,123 @@ end
 function process_batch(file_idx)
 global PATH FILELIST PARAMS
 nfiles = numel(file_idx);
-exp_summary = struct('Rec_Name', [], 'Num_ROIs',[],'ToT_Num_Events',[],'Amp_Mean',[],'Amp_FoF_Mean',[],'Amp_dFoF_Mean',[],...
+rec_master = struct('Rec_Name', [], 'Num_ROIs',[],'ToT_Num_Events',[],'Amp_Mean',[],'Amp_FoF_Mean',[],'Amp_dFoF_Mean',[],...
     'Amp_SD',[],'Amp_FoF_SD',[],'Amp_dFoF_SD',[], 'IEI_Mean',[],'EvRate_Mean',[],...
     'Area_um_Mean',[],'Dend_Area_um',[],'Bg_Area_um',[],'FoV_Area_um',[],'StructNorm_Area',[],'Events_per_Dend_Area',[]);
+roi_master = struct();
+synchronicity_master = struct();
+sync_cnt = 0;
+roi_cnt = 0;
 sum_cnt = 1;
 for iFile = 1:nfiles
-        fprintf('Processing file %i / %i\n', iFile, nfiles);
-        tmpfile = FILELIST{file_idx(iFile),2};
-        evdata = cell(1,12);
-        
-        % Load
-        load(fullfile(PATH,FILELIST{tmpfile,1}));
-        nrois = roidata.n_rois;
-        roilist = cell(nrois,3);
-        for i = 1:nrois
-            roilist{i,1} = sprintf('ROI %i',i); roilist{i,2} = i; roilist{i,3} = true;
+    fprintf('Processing file %i / %i\n', iFile, nfiles);
+    tmpfile = FILELIST{file_idx(iFile),2};
+    evdata = cell(1,12);
+    
+    % Load
+    load(fullfile(PATH,FILELIST{tmpfile,1}));
+    nrois = roidata.n_rois;
+    roilist = cell(nrois,3);
+    for i = 1:nrois
+        roilist{i,1} = sprintf('ROI %i',i); roilist{i,2} = i; roilist{i,3} = true;
+    end
+    cmap_n = max(cellfun(@max ,roidata.roi_bounds(:,2)));
+    cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],cmap_n);
+    % cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],NROIS);
+    
+    % Detect
+    [evdata, ~, PARAMS] = run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, roidata.frametime_s, true, false);
+    
+    % Discard Rois from list if they dont show events
+    for iRoi = 1:size(evdata,1)
+        if isempty(evdata{iRoi,7}) && isempty(evdata{iRoi,6})
+            roilist{iRoi,3} = false;
         end
-        cmap_n = max(cellfun(@max ,roidata.roi_bounds(:,2)));
-        cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],cmap_n);
-        % cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],NROIS);
+    end
+    
+    % Save
+    roiselection = [roilist{:,3}];
+    [tmp_summary, tmp_roimaster, tmp_sync_dist] = save_event_info(evdata, roiselection, roidata, PATH, FILELIST{tmpfile}, true);
+    %         FILELIST{tmpfile,3} = true;
+    
+    % Write all rercording summaries into master table
+    if ~isempty(tmp_summary.Num_ROIs)
+        rec_master(sum_cnt).Rec_Name = FILELIST{tmpfile}(1:end-4);
+        rec_master(sum_cnt).Num_ROIs = tmp_summary.Num_ROIs;
+        rec_master(sum_cnt).ToT_Num_Events = tmp_summary.ToT_Num_Events;
+        rec_master(sum_cnt).Num_Events_Mean = tmp_summary.Num_Events_Mean;
+        rec_master(sum_cnt).Amp_Mean = tmp_summary.Amp_Mean;
+        rec_master(sum_cnt).Amp_FoF_Mean = tmp_summary.Amp_FoF_Mean;
+        rec_master(sum_cnt).Amp_dFoF_Mean = tmp_summary.Amp_dFoF_Mean;
+        rec_master(sum_cnt).Amp_SD = tmp_summary.Amp_SD;
+        rec_master(sum_cnt).Amp_FoF_SD = tmp_summary.Amp_FoF_SD;
+        rec_master(sum_cnt).Amp_dFoF_SD = tmp_summary.Amp_dFoF_SD;
+        rec_master(sum_cnt).Mean_SNR = tmp_summary.Mean_SNR;
+        rec_master(sum_cnt).Event_confidence = tmp_summary.Event_confidence;
+        rec_master(sum_cnt).IEI_Mean = tmp_summary.IEI_Mean;
+        rec_master(sum_cnt).EvRate_Mean = tmp_summary.EvRate_Mean;
+        rec_master(sum_cnt).REC_time_s = tmp_summary.REC_time_s;
+        rec_master(sum_cnt).Area_um_Mean = tmp_summary.Area_um_Mean;
+        rec_master(sum_cnt).StructNorm_Area = tmp_summary.StructNorm_Area;
+        rec_master(sum_cnt).Dend_Area_um = tmp_summary.Dend_Area_um;
+        rec_master(sum_cnt).Bg_Area_um = tmp_summary.Bg_Area_um;
+        rec_master(sum_cnt).FoV_Area_um = tmp_summary.FoV_Area_um;
+        rec_master(sum_cnt).Events_per_Dend_Area = tmp_summary.Events_per_Dend_Area;
+        sum_cnt = sum_cnt+1;
         
-        % Detect
-        [evdata, ~, PARAMS] = run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, roidata.frametime_s, true, false);
-        
-        % Discard Rois from list if they dont show events
-        for iRoi = 1:size(evdata,1)
-            if isempty(evdata{iRoi,7}) && isempty(evdata{iRoi,6})
-                roilist{iRoi,3} = false;
-            end
+        % ROI master table
+        roi_n = size(tmp_roimaster,2);
+        for iRoi = 1:roi_n
+            roi_master(roi_cnt+iRoi).Recording = FILELIST{tmpfile,1}(1:end-4);
+            roi_master(roi_cnt+iRoi).ROI = tmp_roimaster(iRoi).ROI;
+            roi_master(roi_cnt+iRoi).Num_Events = tmp_roimaster(iRoi).Num_Events;
+            roi_master(roi_cnt+iRoi).Amp_Mean = tmp_roimaster(iRoi).Amp_Mean;
+            roi_master(roi_cnt+iRoi).Amp_FoF_Mean = tmp_roimaster(iRoi).Amp_FoF_Mean;
+            roi_master(roi_cnt+iRoi).Amp_dFoF_Mean = tmp_roimaster(iRoi).Amp_dFoF_Mean;
+            roi_master(roi_cnt+iRoi).Amp_SD = tmp_roimaster(iRoi).Amp_SD;
+            roi_master(roi_cnt+iRoi).Amp_FoF_SD = tmp_roimaster(iRoi).Amp_FoF_SD;
+            roi_master(roi_cnt+iRoi).Amp_dFoF_SD = tmp_roimaster.Amp_dFoF_SD;
+            roi_master(roi_cnt+iRoi).Trc_Mean = tmp_roimaster(iRoi).Trc_Mean;
+            roi_master(roi_cnt+iRoi).Trc_SD = tmp_roimaster(iRoi).Trc_SD;
+            roi_master(roi_cnt+iRoi).Trc_dFoF_SD = tmp_roimaster(iRoi).Trc_dFoF_SD;
+            roi_master(roi_cnt+iRoi).Threshold = tmp_roimaster(iRoi).Threshold;
+            roi_master(roi_cnt+iRoi).Trc_SNR = tmp_roimaster(iRoi).Trc_SNR;
+            roi_master(roi_cnt+iRoi).Trc_SNR = tmp_roimaster(iRoi).Trc_SNR;
+            roi_master(roi_cnt+iRoi).Event_confidence = tmp_roimaster(iRoi).Event_confidence;
+            roi_master(roi_cnt+iRoi).IEI_Mean = tmp_roimaster(iRoi).IEI_Mean;
+            roi_master(roi_cnt+iRoi).CV_IEI = tmp_roimaster(iRoi).CV_IEI;
+            roi_master(roi_cnt+iRoi).EvRate = tmp_roimaster(iRoi).EvRate;
+            roi_master(roi_cnt+iRoi).Area_um = tmp_roimaster(iRoi).Area_um;
+            roi_master(roi_cnt+iRoi).StructNorm_Area = tmp_roimaster(iRoi).StructNorm_Area;
+            roi_master(roi_cnt+iRoi).Ctr_X_um = tmp_roimaster(iRoi).Ctr_X_um;
+            roi_master(roi_cnt+iRoi).Ctr_Y_um = tmp_roimaster.Ctr_Y_um;
+            roi_master(roi_cnt+iRoi).subtract_value = tmp_roimaster(iRoi).subtract_value;
+            roi_master(roi_cnt+iRoi).offset = tmp_roimaster(iRoi).offset;
+            roi_master(roi_cnt+iRoi).pmt = tmp_roimaster(iRoi).pmt;
         end
+        roi_cnt = roi_cnt + roi_n;
         
-        % Save
-        roiselection = [roilist{:,3}];
-        [tmp_summary] = save_event_info(evdata, roiselection, roidata, PATH, FILELIST{tmpfile}, true);
-%         FILELIST{tmpfile,3} = true;
-
-        % Write all rercording summaries into master table
-        if ~isempty(tmp_summary.Num_ROIs)
-            exp_summary(sum_cnt).Rec_Name = FILELIST{tmpfile}(1:end-4);
-            exp_summary(sum_cnt).Num_ROIs = tmp_summary.Num_ROIs;
-            exp_summary(sum_cnt).ToT_Num_Events = tmp_summary.ToT_Num_Events;
-            exp_summary(sum_cnt).Num_Events_Mean = tmp_summary.Num_Events_Mean;
-            exp_summary(sum_cnt).Amp_Mean = tmp_summary.Amp_Mean;
-            exp_summary(sum_cnt).Amp_FoF_Mean = tmp_summary.Amp_FoF_Mean;
-            exp_summary(sum_cnt).Amp_dFoF_Mean = tmp_summary.Amp_dFoF_Mean;
-            exp_summary(sum_cnt).Amp_SD = tmp_summary.Amp_SD;
-            exp_summary(sum_cnt).Amp_FoF_SD = tmp_summary.Amp_FoF_SD;
-            exp_summary(sum_cnt).Amp_dFoF_SD = tmp_summary.Amp_dFoF_SD;
-            exp_summary(sum_cnt).Mean_SNR = tmp_summary.Mean_SNR;
-            exp_summary(sum_cnt).Event_confidence = tmp_summary.Event_confidence;
-            exp_summary(sum_cnt).IEI_Mean = tmp_summary.IEI_Mean;
-            exp_summary(sum_cnt).EvRate_Mean = tmp_summary.EvRate_Mean;
-            exp_summary(sum_cnt).REC_time_s = tmp_summary.REC_time_s;
-            exp_summary(sum_cnt).Area_um_Mean = tmp_summary.Area_um_Mean;
-            exp_summary(sum_cnt).StructNorm_Area = tmp_summary.StructNorm_Area;
-            exp_summary(sum_cnt).Dend_Area_um = tmp_summary.Dend_Area_um;
-            exp_summary(sum_cnt).Bg_Area_um = tmp_summary.Bg_Area_um;
-            exp_summary(sum_cnt).FoV_Area_um = tmp_summary.FoV_Area_um;
-            exp_summary(sum_cnt).Events_per_Dend_Area = tmp_summary.Events_per_Dend_Area;
-            sum_cnt = sum_cnt+1;
+        % Synchronicity and Distance master table
+        sync_n = size(tmp_sync_dist,2);
+        for iSync = 1:sync_n
+            synchronicity_master(sync_cnt+iSync).Recording = FILELIST{tmpfile,1}(1:end-4);
+            synchronicity_master(sync_cnt+iSync).ROI_1 = tmp_sync_dist.ROI_1(iSync);
+            synchronicity_master(sync_cnt+iSync).ROI_2 = tmp_sync_dist.ROI_2(iSync);
+            synchronicity_master(sync_cnt+iSync).Dist_um = tmp_sync_dist.Dist_um(iSync);
+            synchronicity_master(sync_cnt+iSync).PearsonR = tmp_sync_dist.PearsonR(iSync);
         end
+        sync_cnt = sync_cnt + sync_n;
+    end
 end
 
 % Write master table to file
 savepath = fullfile(PATH,FILELIST{tmpfile}(1:8));
-exp_summary_xls = strcat(savepath, '_Master.xlsx'); if isa(exp_summary_xls,'cell'), exp_summary_xls=exp_summary_xls{1};end
-writetable(struct2table(exp_summary), exp_summary_xls);
+rec_master_xls = strcat(savepath, '_Rec_master.xlsx'); if isa(rec_master_xls,'cell'), rec_master_xls=rec_master_xls{1};end
+roi_master_xls = strcat(savepath, '_ROI_master.xlsx'); if isa(roi_master_xls,'cell'), roi_master_xls=roi_master_xls{1};end
+sync_master_xls = strcat(savepath, '_Sync_master.xlsx'); if isa(sync_master_xls,'cell'), sync_master_xls=sync_master_xls{1};end
+writetable(struct2table(rec_master), rec_master_xls);
+writetable(struct2table(roi_master), roi_master_xls);
+writetable(struct2table(synchronicity_master), sync_master_xls);
 
 msgbox('All files processed!');
 uiresume; close all;

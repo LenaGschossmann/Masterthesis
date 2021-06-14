@@ -1,10 +1,10 @@
 function [eventdata, selrois, params] = run_event_detection(eventdata,roilist, dFoFtraces, FoFtraces, traces,  params, ft, auto, getui)
-
+%% Function to detect events in optical imaging data using iGluSnFR as sensor
 n_frames = size(dFoFtraces,2);
 peakwin = ceil(params.peak_win_ms/(1000*ft));
 % threshold_fac = params.ev_fac;
 perc_threshold = params.ev_perc_thresh;
-inizone = params.fbase_winsize_s;
+inizone = params.dFoF_baseline_s;
 safe_fac = params.safe_fac;
 critical_fac = params.critical_fac;
 ui = [];

@@ -2,10 +2,10 @@
 % Pnevmatikakis, E. A., & Giovannucci, A. (2017). NoRMCorre: An online algorithm for piecewise rigid motion correction of calcium imaging data. Journal of neuroscience methods, 291, 83-94.
 
 % Add paths
-addpath(genpath('NoRMCCorre'));
-addpath(genpath('CaImAn_scripts'));
 wd = pwd(); p = split(wd,'\'); p = p(1:end-1); pp = []; for ii=1:numel(p), pp = fullfile(pp,p{ii}); end
-pp=fullfile(pp,'OpenBFiles'); addpath(genpath(pp)), clear('p','pp');
+pp1=fullfile(pp,'OpenBFiles'); addpath(genpath(pp1)), clear('p','pp1');
+pp2=fullfile(pp,'NoRMCCorre'); addpath(genpath(pp2)), clear('p','pp2');
+pp3=fullfile(pp,'CaImAn_scripts'); addpath(genpath(pp3)), clear('p','pp3');
 
 %% Batch selection
 % Select .nd2 file from NikonM

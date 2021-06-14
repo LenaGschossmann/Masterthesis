@@ -1,4 +1,4 @@
-function rec_summary = save_event_info(eventdata, roiselection, roidata, path, filename, return_summary)
+function [summary, roi_summary, synchro_dist_tbl] = save_event_info(eventdata, roiselection, roidata, path, filename, batchmode)
 
 %% Unpack & Initialize
 roiselection = reshape(roiselection,[numel(roiselection) 1]);
@@ -78,6 +78,7 @@ if ~isempty(save_rois)
         totevents = totevents+nevents;
         save_ptr = NaN(nevents,1);
         for iE = 1:nevents, save_ptr(iE) = find(save_idx(iE)==eventdata{tmproi,3}); end
+        baseline_n = roidata.baseline_frames;
         
         %% Traces
         traces.(roinames{iRoi}) = roidata.traces(tmproi,:)';
@@ -132,8 +133,12 @@ if ~isempty(save_rois)
             event_info(tblcnt).Peak_time = eventdata{tmproi,4}(save_ptr(iE))*ft;
             event_info(tblcnt).Amp = eventdata{tmproi,5}(save_ptr(iE),3);
             event_info(tblcnt).Amp_FoF = eventdata{tmproi,5}(save_ptr(iE),2);
+            event_info(tblcnt).Baseline = mean(tmptrace(eventdata{tmproi,7}(iE)-baseline_n:eventdata{tmproi,7}(iE)-1));
             event_info(tblcnt).Amp_dFoF = eventdata{tmproi,5}(save_ptr(iE),1);
             event_info(tblcnt).IEI = tmpieis(iE);
+            event_info(tblcnt).subtract_value = roidata.subtract_value;
+            event_info(tblcnt).offset = roidata.offset;
+            event_info(tblcnt).pmt = roidata.pmt;
             tblcnt=tblcnt+1;
             
             syn_mtrx_Amp_dFoF(iRoi,eventdata{tmproi,7}(iE)) = eventdata{tmproi,5}(save_ptr(iE),1);
@@ -164,6 +169,9 @@ if ~isempty(save_rois)
         roi_summary(iRoi).StructNorm_Area = roidata.roi_area_um(tmproi)/roidata.dendritic_area_um;
         roi_summary(iRoi).Ctr_X_um = roidata.roi_centroids_um(tmproi,1);
         roi_summary(iRoi).Ctr_Y_um = roidata.roi_centroids_um(tmproi,2);
+        roi_summary(iRoi).subtract_value = roidata.subtract_value;
+        roi_summary(iRoi).offset = roidata.offset;
+        roi_summary(iRoi).pmt = roidata.pmt;
         
         % ROI snap
         f1=figure('Position',figsize,'Visible','off');
@@ -257,6 +265,9 @@ if ~isempty(save_rois)
     rec_summary.Bg_Area_um = roidata.background_area_um;
     rec_summary.FoV_Area_um = roidata.fov_area_um;
     rec_summary.Events_per_Dend_Area = totevents/roidata.dendritic_area_um;
+    rec_summary.subtract_value = roidata.subtract_value;
+    rec_summary.offset = roidata.offset;
+    rec_summary.pmt = roidata.pmt;
     
     %% Save
     % Traces
@@ -326,5 +337,9 @@ end
 disp('Files saved');
 
 %% Output
-if return_summary, exp_summary = rec_summary; else, exp_summary = []; end
+if batchmode
+    summary = rec_summary;
+else
+    summary = [];
+end
 end
