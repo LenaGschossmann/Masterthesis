@@ -151,23 +151,57 @@ xlabel('F/F expressed as SD multiple'); ylabel('Counts'); title(strcat('Comp. po
 % sl(10) = 0.3/(thetas(find(results<=40,1,'first'))-thetas(find(results<=10,1,'first')));
 % sl(11) = 0.3/(thetas(find(results<=80,1,'first'))-thetas(find(results<=50,1,'first')));
 
-%% ***** LUT
+      
 
-mv = 1.5;
-gr=0.5;
-mp=30;
-xval = 1:50;
-% function yval = lut_create(xval, mv, gr, mp)
-yval = 5+ (mv./(1+exp(-gr.*(xval-mp))));
-% end
-figure, plot(xval, yval)
-% hold on, plot(xval, yval)
+%% ******* Event detection
+figure, plot(traces(tmproi,1:500)), hold on, plot(trc_filtrd(tmproi,1:500)), legend()
+% figure, plot(traces(tmproi,1:500)), hold on, plot(trc_filtrd_2(tmproi,1:500)), legend()
+
+figure, plot(tmpFoF), hold on, yline(1+tmpSDnoise); yline(1-tmpSDnoise);
+yline(1+tmpSDnoise*SD_factor, 'r'); yline(1+tmpSDnoise*SD_factor_safe, 'g')
+
+figure, plot(tmpFoF), hold on;
+% l = find(FoF_crossing==1);
+for ii = 1:numel(onset_idx)
+    xline(onset_idx(ii));
+end
+l = find(FoF1d_crossing==1);
+for ii = 1:numel(l)
+    xline(l(ii),'r');
+end
+hold on, yline(1+abs(mean(tmpFoF(ctrl_peak_idx))));
+
+figure, plot(ctrl_FoF), hold on;
+for ii = 1:numel(ctrl_onset_idx)
+    xline(ctrl_onset_idx(ii));
+end
 
 
+%% Filter comparison
+% Filter traces
+fk1 = [1 1 1];
+fk2 = [1 2 1];
+fk3 = [1 4 6 4 1];
 
-%%
-         
+trc_filtrd1 = smooth_data(roidata.traces, fk1);
+trc_filtrd2 = smooth_data(roidata.traces, fk2);
+trc_filtrd3 = smooth_data(roidata.traces, fk3);
 
+% Calculate FoF
+[~,FoF, ~] = rollBase_dFoF(roidata.traces,roidata.baseline_frames,PARAMS.dFoF_baseline_shift, 'roll');
+[~,FoF_filtrd1, ~] = rollBase_dFoF(trc_filtrd1,roidata.baseline_frames,PARAMS.dFoF_baseline_shift, 'roll');
+[~,FoF_filtrd2, ~] = rollBase_dFoF(trc_filtrd2,roidata.baseline_frames,PARAMS.dFoF_baseline_shift, 'roll');
+[~,FoF_filtrd3, ~] = rollBase_dFoF(trc_filtrd3,roidata.baseline_frames,PARAMS.dFoF_baseline_shift, 'roll');
+
+idx = 10;
+yr = [min([FoF(3,:) FoF_filtrd1(3,:) FoF_filtrd2(3,:) FoF_filtrd3(3,:)]) max([FoF(3,:) FoF_filtrd1(3,:) FoF_filtrd2(3,:) FoF_filtrd3(3,:)])]; 
+range = 1:size(FoF_filtrd1,2);
+xl = 1:numel(range);
+figure();
+subplot(4,1,1), plot(xl,FoF(idx,range)), title('No Filter'), ylim(yr);
+subplot(4,1,2), plot(xl,FoF_filtrd1(idx,range)), title('[1 1 1]'), ylim(yr);
+subplot(4,1,3), plot(xl,FoF_filtrd2(idx,range)), title('[1 2 1]'), ylim(yr);
+subplot(4,1,4), plot(xl,FoF_filtrd3(idx,range)), title('[1 4 6 4 1]'), ylim(yr);
 
 
 

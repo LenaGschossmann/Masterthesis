@@ -2,7 +2,7 @@
 
 addpath('C:\Users\lena_\Projects\code_extern\Matlab\WriteImageJRoi\');
 
-global ROILIST REVINFO LOADED PATH FILELIST SELFILE NFILES...
+global ROILIST REVINFO LOADED PATH FILELIST SELFILE NFILES FILTKERNEL...
     NROIS SELROI FT CMAP roidata mainfig txtsm ddlist sp1a sp1b txtbig...
     fig3_pos FONTSIZE EVDATA DELROIS ALLROIS PARAMS DETECTED fig2_pos imsp2_pos...
     but2_po1_pos_1 trcsp2_pos but1_2 but1_3 but1_4 but1_5 but1_6 shownonev...
@@ -17,12 +17,13 @@ SELROI = []; SELFILE = []; DELROIS = []; ALLROIS=[];
 FT = []; CMAP = [];
 EVDATA = cell(1,12);
 DETECTED = false;
+FILTKERNEL = []; %[1 2 1]; [1 3 3 1]
 
 shownonev = true;
 PARAMS = get_predefined_params();
-TRCMODE = 'dFoF';
+TRCMODE = 'FoF';
 PLOTMODE = 'aip';
-AUTO = false;
+AUTO = true;
 BATCH = true;
 
 %% GUI Parameters
@@ -34,7 +35,7 @@ whfig1 = [round(4*scrsz(1)/12) scrsz(2)-50]; % Main (overview) window
 whunits = 1./[7 15];
 whddlist = [3 0.5].*whunits;
 whbut1 = [2 0.7].*whunits;
-whtxtbg = [3 2].*whunits;
+whtxtbg = [3 2.3].*whunits;
 whtxtsm = [5 1].*whunits;
 whimsp1 = [5 8].*whunits;
 whimsp1b = [0.5 4].*whunits;
@@ -66,7 +67,8 @@ but1_pos_3 = [but1_pos_2(1) but1_pos_2(2)+but1_pos_2(4)+0.5*hvspace1(2) whbut1];
 but1_pos_4 = [but1_pos_2(1) but1_pos_3(2)+but1_pos_3(4)+0.5*hvspace1(2) whbut1];
 txtsm_pos = [hvspace1(1)*2 but1_pos_4(2)+but1_pos_4(4)+0.2*hvspace1(2) whtxtsm];
 txttitle_pos = [hvspace1(1)*2.5 txtsm_pos(2)+0.5*txtsm_pos(4) whtxtsm];
-rb_pos = [but1_pos_2(1)+but1_pos_2(3)+hvspace1(1)*0.2 but1_pos_2(2) whbut1(1)/4 whbut1(2)];
+rb_pos_1 = [but1_pos_2(1)+but1_pos_2(3)+hvspace1(1)*0.2 but1_pos_2(2) whbut1(1)/4 whbut1(2)];
+rb_pos_2 = [rb_pos_1(1) but1_pos_4(2) whbut1(1)/2 whbut1(2)];
 fig2_pos = [whfig1(1) round(scrsz(2)/2.25) whfig2];
 imsp2_pos = [hvspace2(1)*1.5 5.5*hvspace2(2) whimsp2];
 trcsp2_pos = [imsp2_pos(1)+imsp2_pos(3)+hvspace2(1)*2.5 hvspace2(2)*2.5 whtrcsp2];
@@ -91,7 +93,8 @@ but1_6 = uicontrol('parent', mainfig, 'style', 'pushbutton','units', 'normalized
 txtbig = uicontrol('parent', mainfig, 'style', 'text','units', 'normalized','position', txtbig_pos,'string', '','BackgroundColor', txtbgcol,'ForegroundColor', txtfgcol, 'FONTSIZE', FONTSIZE);
 txttitle = uicontrol('parent', mainfig, 'style', 'text','units', 'normalized','position', txttitle_pos,'string', 'ROIFlow Event detection','FONTSIZE', round(FONTSIZE*1.3));
 txtsm = uicontrol('parent', mainfig, 'style', 'text','units', 'normalized','position', txtsm_pos,'string', '','FONTSIZE', FONTSIZE-2);
-rb = uicontrol('parent', mainfig, 'style', 'radiobutton','units', 'normalized','position', rb_pos,'string', 'All','FONTSIZE', FONTSIZE-1,'Value', BATCH, 'callback', {@cb_rb_batch});
+rb_1 = uicontrol('parent', mainfig, 'style', 'radiobutton','units', 'normalized','position', rb_pos_1,'string', 'All','FONTSIZE', FONTSIZE-1,'Value', BATCH, 'callback', {@cb_rb_batch});
+rb_2 = uicontrol('parent', mainfig, 'style', 'radiobutton','units', 'normalized','position', rb_pos_2,'string', 'Auto','FONTSIZE', FONTSIZE-1,'Value', AUTO, 'callback', {@cb_rb_auto});
 
 uiwait;
 
@@ -150,7 +153,7 @@ end
 end
 
 function load_mat()
-global PATH FILELIST SELFILE SELROI ROILIST EVDATA...
+global PATH FILELIST SELFILE SELROI ROILIST EVDATA FILTKERNEL PARAMS...
     NROIS DETECTED FT CMAP roidata txtsm ddlist sp1a sp1b ALLROIS PLOTMODE
 load(fullfile(PATH,FILELIST{SELFILE,1}));
 NROIS = roidata.n_rois;
@@ -159,12 +162,23 @@ FT = roidata.frametime_s;
 ROILIST = cell(NROIS,2);
 ALLROIS = cell(NROIS,3);
 DETECTED = false(NROIS,1);
-for i = 1:NROIS
-    ROILIST{i,1} = sprintf('ROI %i',i); ROILIST{i,2} = i;
-    ALLROIS{i,3} = true;
+EVDATA = struct();
+% Filter traces
+if ~isempty(FILTKERNEL), trc_filtrd = smooth_data(roidata.traces, FILTKERNEL);
+else, trc_filtrd = roidata.traces;
+end
+% Calculate FoF
+[~,FoF_filtrd, dFoF_filtrd] = rollBase_dFoF(trc_filtrd,roidata.baseline_frames,PARAMS.dFoF_baseline_shift, 'roll');
+for iRoi = 1:NROIS
+    ROILIST{iRoi,1} = sprintf('ROI %i',iRoi); ROILIST{iRoi,2} = iRoi;
+    ALLROIS{iRoi,3} = true;
+    EVDATA(iRoi).size_FiltKernel = numel(FILTKERNEL);
+    EVDATA(iRoi).filtrd_trace = trc_filtrd(iRoi,:);
+    EVDATA(iRoi).filtrd_FoFtrace = FoF_filtrd(iRoi,:);
+    EVDATA(iRoi).filtrd_dFoFtrace = dFoF_filtrd(iRoi,:);
+    EVDATA(iRoi).FoF_SDnoise = [];
 end
 ALLROIS(:,1:2) = ROILIST;
-EVDATA = cell(NROIS,10);
 txtsm.String = FILELIST{SELFILE,1};
 ddlist.String = ROILIST(:,1);
 ddlist.Value = 1;
@@ -178,7 +192,7 @@ end
 
 function cb_but1_accept(~,~)
 global SELFILE FILELIST EVDATA ALLROIS roidata...
-    PATH trcfig BATCH
+    PATH trcfig BATCH PARAMS
 if ishandle(trcfig), figure(trcfig); close gcf; end
 tmpfl = find([FILELIST{:,3}]== 0);
 if BATCH && size(FILELIST,1) > 1
@@ -186,7 +200,7 @@ if BATCH && size(FILELIST,1) > 1
     process_batch(tmpfl);
 else
     roiselection = [ALLROIS{:,3}];
-    [~,~,~] = save_event_info(EVDATA, roiselection, roidata, PATH, FILELIST{SELFILE},false);
+    [~,~,~] = save_event_info(EVDATA, roiselection, roidata, PARAMS, PATH, FILELIST{SELFILE},false);
     FILELIST{SELFILE,3} = true;
     % Work on next file
     if ~isempty(tmpfl)
@@ -202,51 +216,54 @@ global BATCH
 BATCH = hOb.Value;
 end
 
+function cb_rb_auto(hOb,~)
+global AUTO
+AUTO = hOb.Value;
+end
+
 function cb_but1_revision(~,~)
 global fig3_pos sp2_2 sp1a sp1b ddlist EVDATA DETECTED ROILIST...
-    roidata SELROI FT TRCMODE PLOTMODE
-if ~strcmp(EVDATA{SELROI,11}, 'perfect') && ~isempty(EVDATA{SELROI,6})
-    goOn = false;
-    while ~goOn
-        [goOn, keep_rev] = revise_events(fig3_pos, EVDATA(SELROI,:), roidata.dFoF_traces(SELROI,:), FT);
+    SELROI FT TRCMODE PLOTMODE PARAMS AUTO
+goOn = false;
+while ~goOn
+    [goOn, keep_ev] = revise_events(AUTO, fig3_pos, PARAMS, EVDATA, SELROI, FT);
+end
+if ~AUTO && ~isempty(keep_ev)
+    EVDATA(SELROI).onset_idx(~keep_ev) = [];
+    EVDATA(SELROI).peak_idx(~keep_ev) = [];
+%     EVDATA(SELROI).peak_amp(~keep_ev) = [];
+%     EVDATA(SELROI).FoF_peak_amp(~keep_ev) = [];
+    if ishandle(sp2_2), plot_traces(SELROI, TRCMODE, DETECTED(SELROI));
+    else, open_trcfig();
     end
-    if ~isempty(keep_rev)
-        tmp_rev = EVDATA{SELROI,6}(1:numel(keep_rev));
-        EVDATA{SELROI,7} = [EVDATA{SELROI,7} tmp_rev(keep_rev)];
-        EVDATA{SELROI,6} = EVDATA{SELROI,6}(numel(keep_rev)+1:end);
-        if ishandle(sp2_2), plot_traces(SELROI, TRCMODE, DETECTED(SELROI));
-        else, open_trcfig();
-        end
-        if DETECTED(SELROI), update_main_fig();end
-        clear('tmp_rev');
+    if DETECTED(SELROI), update_main_fig();end
+    clear('tmp_rev');
+end
+% Discard Roi from list if no events left
+if ~AUTO && isempty(keep_ev) && all(~keep_ev)
+    currpter = find(([ROILIST{:,2}]==SELROI)==1);
+    ROILIST(currpter,:) = [];
+    if ~isempty(ROILIST), ddlist.Value = currpter; SELROI = ROILIST{currpter,2};
+    else, ddlist.String = 'NO ROIs';ddlist.Enable='off'; SELROI = 0;
     end
-    % Discard Roi from list if no events left
-    if isempty(EVDATA{SELROI,7})
-        currpter = find(([ROILIST{:,2}]==SELROI)==1);
-        ROILIST(currpter,:) = [];
-        if ~isempty(ROILIST), ddlist.Value = currpter; SELROI = ROILIST{currpter,2};
-        else, ddlist.String = 'NO ROIs';ddlist.Enable='off'; SELROI = 0;
-        end
-        plot_rois([ROILIST{:,2}], PLOTMODE, sp1a, sp1b);
-    end
+    plot_rois([ROILIST{:,2}], PLOTMODE, sp1a, sp1b);
 end
 end
 
 function cb_but1_detection(~,~)
-global roidata EVDATA ALLROIS PARAMS NROIS SELROI...
+global EVDATA ALLROIS PARAMS NROIS SELROI...
     sp2_2 sp1a sp1b but1_3 but1_2 trcfig ddlist DETECTED ROILIST TRCMODE PLOTMODE FT AUTO
 % Detects events in all traces
 if SELROI == 0, ROILIST = ALLROIS(:,1:2); SELROI = 1; end
-[EVDATA, detroi, PARAMS] = run_event_detection(EVDATA, ROILIST, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, FT, AUTO, true);
+[EVDATA, detroi, PARAMS] = run_event_detection(EVDATA, ROILIST, PARAMS, FT, AUTO, true);
 DETECTED(detroi) = true;
 but1_3.Enable='on';
 but1_2.Enable='on';
 % Discard Rois from list if they dont show events
-if any(logical(cellfun(@isempty, EVDATA(:,7))) &...
-        logical(cellfun(@isempty, EVDATA(:,6))))
-    pterdel = logical(cellfun(@isempty, EVDATA(:,7)))&logical(cellfun(@isempty, EVDATA(:,6)));
-    pternew = find(pterdel==0 & [ALLROIS{:,3}]');
-    delrois = find(pterdel==1);
+
+if any(~([EVDATA(:).events_detected]))
+    pternew = find([EVDATA(:).events_detected] == 1 & [ALLROIS{:,3}]);
+    delrois = find([EVDATA(:).events_detected] == 0);
     ROILIST = ALLROIS(pternew,:);
     if ~isempty(ddlist.Value) && any(ddlist.Value == delrois) && ~isempty(pternew)
         ddlist.Value = 1;
@@ -293,7 +310,7 @@ end
 end
 
 function switch_trace(swdir)
-global SELROI sp2_1 sp2_2 DETECTED EVDATA txtbig ROILIST...
+global SELROI sp2_1 sp2_2 DETECTED ROILIST...
     TRCMODE ddlist PLOTMODE
 if SELROI ~= 0
     tmpid = find(SELROI == [ROILIST{:,2}]);
@@ -404,60 +421,61 @@ end
 end
 
 function plot_traces(roiid, type, events)
-global roidata FT FONTSIZE EVDATA SELROI sp2_2
+global FT FONTSIZE EVDATA SELROI sp2_2
 axes(sp2_2);
 cla;
 trccol = [0 0 0]; %[0.6510 0.0667 0.2784];
-if strcmp(type,'dFoF'), tmptraces = roidata.dFoF_traces; yaxlab = 'dFoF +1';
-elseif strcmp(type,'FoF'), tmptraces = roidata.FoF_traces; yaxlab = 'FoF';
-else, tmptraces = roidata.traces; yaxlab = 'Intensity [a.u.]';
+if strcmp(type,'dFoF'), tmptrace = EVDATA(roiid).filtrd_FoFtrace; yaxlab = 'dFoF'; %tmptraces = roidata.dFoF_traces; 
+elseif strcmp(type,'FoF'), tmptrace = EVDATA(roiid).filtrd_FoFtrace; yaxlab = 'FoF'; %tmptraces = roidata.FoF_traces
+else, tmptrace = EVDATA(roiid).filtrd_trace; yaxlab = 'Intensity [a.u.]'; % tmptraces = roidata.traces;
 end
-plot(FT.*(1:size(tmptraces,2)), tmptraces(roiid,:)+1, 'Color', trccol, 'LineWidth', 1);
-if ~isempty(EVDATA{SELROI,10})
-    hold on, yline(1+EVDATA{SELROI,10}(2)*EVDATA{SELROI,10}(3), 'cyan');
-    text(1,1+EVDATA{SELROI,10}(2)*EVDATA{SELROI,10}(3), strcat('det.thresh. x ',num2str(EVDATA{SELROI,10}(3))), 'Fontsize', 6);
+plot(FT.*(1:size(tmptrace,2)), tmptrace, 'Color', trccol, 'LineWidth', 1);
+if ~isempty(EVDATA(SELROI).FoF_SDnoise) && strcmp(type,'FoF')
+    hold on, yline(1-EVDATA(SELROI).FoF_SDnoise, 'Color',[.5 .5 .5]); yline(1+EVDATA(SELROI).FoF_SDnoise, 'Color',[.5 .5 .5]);
+    
+    hold on, yline(EVDATA(SELROI).FoF_threshold, 'cyan');
+    text(1,EVDATA(SELROI).FoF_threshold, strcat('det.thresh. ',num2str(EVDATA(SELROI).FoF_threshold)), 'Fontsize', 6);
+    
+    if ~isempty(EVDATA(SELROI).ctrl_av_peak_FoF)
+        hold on, yline(EVDATA(SELROI).ctrl_av_peak_FoF, 'blue');
+        text(1,EVDATA(SELROI).ctrl_av_peak_FoF, 'ctrl av. peak amp ', 'Fontsize', 6);
+    end
 end
-if ~isempty(EVDATA{SELROI,10})
-    yline(1+EVDATA{SELROI,10}(1)*EVDATA{SELROI,10}(4), 'red');
-    text(1,1+EVDATA{SELROI,10}(1)*EVDATA{SELROI,10}(4), strcat('%-tile val. x ',num2str(EVDATA{SELROI,10}(4))), 'Fontsize', 6);
-end
-if ~isempty(EVDATA{SELROI,10})
-    hold on, yline(1-EVDATA{SELROI,10}(1), 'Color',[.5 .5 .5]);
-    yline(1+EVDATA{SELROI,10}(1), 'Color',[.5 .5 .5]);
-end
-yrange = [min(tmptraces(roiid,:))+1 max(tmptraces(roiid,:))+1];
+yrange = [min(tmptrace) max(tmptrace)];
 ylim([yrange(1)-diff(yrange)/10 yrange(2)+diff(yrange)/10]);
-xlim([FT size(tmptraces(roiid,:),2)*FT]);
+xlim([FT size(tmptrace,2)*FT]);
 xlabel('Time [s]'); ylabel(yaxlab);
 set(gca, 'FontSize', FONTSIZE-1);
 if events
-    save_pts = EVDATA{SELROI,7}.*FT;
-    rev_pts = EVDATA{SELROI,6}.*FT;
+    rev_pts = EVDATA(SELROI).peak_idx .*FT;
     hold on;
-    for iEv = 1:numel(save_pts), xline(save_pts(iEv), 'Color',[0 0 0], 'LineWidth', 1.2, 'Alpha',.4); end
     for iEv = 1:numel(rev_pts), xline(rev_pts(iEv), 'r', 'LineWidth', 1.2, 'Alpha', .4); end
     hold off;
 end
 end
 
 function update_main_fig()
-global txtbig but1_3 EVDATA SELROI NROIS
-txtbig.String = {'',sprintf('Accepted ROIs: %i / %i', sum(strcmp([EVDATA(:,11)],'perfect')), NROIS), '',...
-    sprintf('State of ROI: %s', EVDATA{SELROI,11}),'',...
-    sprintf('Accepted: %i | Revision: %i', numel(EVDATA{SELROI,7}), numel(EVDATA{SELROI,6})), '',...
-    sprintf('Detect: > %ixSD | Save: > %ixSD',EVDATA{SELROI,10}(1), EVDATA{SELROI,10}(2))};
-pause(0.1);
-if strcmp(EVDATA{SELROI,11}, 'perfect'), but1_3.Enable = 'off';
-else, but1_3.Enable = 'on';
+global txtbig EVDATA SELROI NROIS
+tot_ev = 0; all_peak_amp = [];
+for iEv = 1:size(EVDATA,2)
+    tot_ev = tot_ev + numel(EVDATA(SELROI).onset_idx);
+    all_peak = [all_peak_amp EVDATA(SELROI).filtrd_FoFtrace(EVDATA(SELROI).peak_idx)'];
 end
+min_peak = round(min(all_peak),2);
+av_peak = round(mean(all_peak),2);
+max_peak = round(max(all_peak),2);
+
+txtbig.String = {'',sprintf('ROIs with events: %i / %i', sum([EVDATA.events_detected]), NROIS), '',...
+    sprintf('# Events curr. ROI: %i', numel(EVDATA(SELROI).onset_idx)),'',...
+    sprintf('# Events total: %i', tot_ev), '',...
+    strcat('Min/Av/Max Peak: ',num2str(min_peak),'/',num2str(av_peak),'/',num2str(max_peak))};
+pause(0.1);
 end
 
 function process_batch(file_idx)
-global PATH FILELIST PARAMS
+global PATH FILELIST PARAMS FILTKERNEL
 nfiles = numel(file_idx);
-rec_master = struct('Rec_Name', [], 'Num_ROIs',[],'ToT_Num_Events',[],'Amp_Mean',[],'Amp_FoF_Mean',[],'Amp_dFoF_Mean',[],...
-    'Amp_SD',[],'Amp_FoF_SD',[],'Amp_dFoF_SD',[], 'IEI_Mean',[],'EvRate_Mean',[],...
-    'Area_um_Mean',[],'Dend_Area_um',[],'Bg_Area_um',[],'FoV_Area_um',[],'StructNorm_Area',[],'Events_per_Dend_Area',[]);
+rec_master = struct();
 roi_master = struct();
 synchronicity_master = struct();
 sync_cnt = 0;
@@ -465,33 +483,44 @@ roi_cnt = 0;
 sum_cnt = 1;
 for iFile = 1:nfiles
     fprintf('Processing file %i / %i\n', iFile, nfiles);
-    tmpfile = FILELIST{file_idx(iFile),2};
-    evdata = cell(1,12);
+    tmpfile = FILELIST{file_idx(iFile),2};   
+    evdata = struct();
     
     % Load
     load(fullfile(PATH,FILELIST{tmpfile,1}));
     nrois = roidata.n_rois;
     roilist = cell(nrois,3);
-    for i = 1:nrois
-        roilist{i,1} = sprintf('ROI %i',i); roilist{i,2} = i; roilist{i,3} = true;
+    % Filter traces
+    if ~isempty(FILTKERNEL), trc_filtrd = smooth_data(roidata.traces, FILTKERNEL);
+    else, trc_filtrd = roidata.traces;
+    end
+    % Calculate FoF
+    [~,FoF_filtrd, dFoF_filtrd] = rollBase_dFoF(trc_filtrd,roidata.baseline_frames,PARAMS.dFoF_baseline_shift, 'roll');
+    for iRoi = 1:nrois
+        roilist{iRoi,1} = sprintf('ROI %i',iRoi); roilist{iRoi,2} = iRoi; roilist{iRoi,3} = true;
+        evdata(iRoi).size_FiltKernel = numel(FILTKERNEL);
+        evdata(iRoi).filtrd_trace = trc_filtrd(iRoi,:);
+        evdata(iRoi).filtrd_FoFtrace = FoF_filtrd(iRoi,:);
+        evdata(iRoi).filtrd_dFoFtrace = dFoF_filtrd(iRoi,:);
+        evdata(iRoi).FoF_SDnoise = [];
     end
     cmap_n = max(cellfun(@max ,roidata.roi_bounds(:,2)));
     cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],cmap_n);
     % cmap = get_colormap([1 0 0],[1 1 0],[0 1 1],NROIS);
     
     % Detect
-    [evdata, ~, PARAMS] = run_event_detection(evdata, roilist, roidata.dFoF_traces, roidata.FoF_traces, roidata.traces, PARAMS, roidata.frametime_s, true, false);
+    [evdata, ~, PARAMS] = run_event_detection(evdata, roilist, PARAMS, roidata.frametime_s, true, false);
     
     % Discard Rois from list if they dont show events
     for iRoi = 1:size(evdata,1)
-        if isempty(evdata{iRoi,7}) && isempty(evdata{iRoi,6})
+        if isempty(evdata(iRoi).onset_idx)
             roilist{iRoi,3} = false;
         end
     end
     
     % Save
     roiselection = [roilist{:,3}];
-    [tmp_summary, tmp_roimaster, tmp_sync_dist] = save_event_info(evdata, roiselection, roidata, PATH, FILELIST{tmpfile}, true);
+    [tmp_summary, tmp_roimaster, tmp_sync_dist] = save_event_info(evdata, roiselection, roidata, PARAMS, PATH, FILELIST{tmpfile}, true);
     %         FILELIST{tmpfile,3} = true;
     
     % Write all rercording summaries into master table
@@ -502,17 +531,16 @@ for iFile = 1:nfiles
         rec_master(sum_cnt).Num_Events_Mean = tmp_summary.Num_Events_Mean;
         rec_master(sum_cnt).Amp_Mean = tmp_summary.Amp_Mean;
         rec_master(sum_cnt).Amp_FoF_Mean = tmp_summary.Amp_FoF_Mean;
-        rec_master(sum_cnt).Amp_dFoF_Mean = tmp_summary.Amp_dFoF_Mean;
+        rec_master(sum_cnt).Peak_dFoF_Mean = tmp_summary.Peak_dFoF_Mean;
         rec_master(sum_cnt).Amp_SD = tmp_summary.Amp_SD;
         rec_master(sum_cnt).Amp_FoF_SD = tmp_summary.Amp_FoF_SD;
-        rec_master(sum_cnt).Amp_dFoF_SD = tmp_summary.Amp_dFoF_SD;
+        rec_master(sum_cnt).Peak_dFoF_SD = tmp_summary.Peak_dFoF_SD;
         rec_master(sum_cnt).Mean_SNR = tmp_summary.Mean_SNR;
-        rec_master(sum_cnt).Event_confidence = tmp_summary.Event_confidence;
         rec_master(sum_cnt).IEI_Mean = tmp_summary.IEI_Mean;
-        rec_master(sum_cnt).EvRate_Mean = tmp_summary.EvRate_Mean;
+        rec_master(sum_cnt).EvRate_Hz_Mean = tmp_summary.EvRate_Hz_Mean;
         rec_master(sum_cnt).REC_time_s = tmp_summary.REC_time_s;
         rec_master(sum_cnt).Area_um_Mean = tmp_summary.Area_um_Mean;
-        rec_master(sum_cnt).StructNorm_Area = tmp_summary.StructNorm_Area;
+        rec_master(sum_cnt).Area_ROI_PercOf_Struct = tmp_summary.Area_ROI_PercOf_Struct;
         rec_master(sum_cnt).Dend_Area_um = tmp_summary.Dend_Area_um;
         rec_master(sum_cnt).Bg_Area_um = tmp_summary.Bg_Area_um;
         rec_master(sum_cnt).FoV_Area_um = tmp_summary.FoV_Area_um;
@@ -527,40 +555,46 @@ for iFile = 1:nfiles
             roi_master(roi_cnt+iRoi).Num_Events = tmp_roimaster(iRoi).Num_Events;
             roi_master(roi_cnt+iRoi).Amp_Mean = tmp_roimaster(iRoi).Amp_Mean;
             roi_master(roi_cnt+iRoi).Amp_FoF_Mean = tmp_roimaster(iRoi).Amp_FoF_Mean;
-            roi_master(roi_cnt+iRoi).Amp_dFoF_Mean = tmp_roimaster(iRoi).Amp_dFoF_Mean;
+            roi_master(roi_cnt+iRoi).Peak_dFoF_Mean = tmp_roimaster(iRoi).Peak_dFoF_Mean;
             roi_master(roi_cnt+iRoi).Amp_SD = tmp_roimaster(iRoi).Amp_SD;
             roi_master(roi_cnt+iRoi).Amp_FoF_SD = tmp_roimaster(iRoi).Amp_FoF_SD;
-            roi_master(roi_cnt+iRoi).Amp_dFoF_SD = tmp_roimaster.Amp_dFoF_SD;
+            roi_master(roi_cnt+iRoi).Peak_dFoF_SD = tmp_roimaster(iRoi).Peak_dFoF_SD;
             roi_master(roi_cnt+iRoi).Trc_Mean = tmp_roimaster(iRoi).Trc_Mean;
+            roi_master(roi_cnt+iRoi).Trc_FoF_Mean = tmp_roimaster(iRoi).Trc_FoF_Mean;
+            roi_master(roi_cnt+iRoi).Trc_dFoF_Mean = tmp_roimaster(iRoi).Trc_dFoF_Mean;
             roi_master(roi_cnt+iRoi).Trc_SD = tmp_roimaster(iRoi).Trc_SD;
+            roi_master(roi_cnt+iRoi).Trc_FoF_SD = tmp_roimaster(iRoi).Trc_FoF_SD;
             roi_master(roi_cnt+iRoi).Trc_dFoF_SD = tmp_roimaster(iRoi).Trc_dFoF_SD;
-            roi_master(roi_cnt+iRoi).Threshold = tmp_roimaster(iRoi).Threshold;
+            roi_master(roi_cnt+iRoi).Threshold_Slope = tmp_roimaster(iRoi).Threshold_Slope;
+            roi_master(roi_cnt+iRoi).Threshold_Amp = tmp_roimaster(iRoi).Threshold_Amp;
             roi_master(roi_cnt+iRoi).Trc_SNR = tmp_roimaster(iRoi).Trc_SNR;
-            roi_master(roi_cnt+iRoi).Trc_SNR = tmp_roimaster(iRoi).Trc_SNR;
-            roi_master(roi_cnt+iRoi).Event_confidence = tmp_roimaster(iRoi).Event_confidence;
             roi_master(roi_cnt+iRoi).IEI_Mean = tmp_roimaster(iRoi).IEI_Mean;
             roi_master(roi_cnt+iRoi).CV_IEI = tmp_roimaster(iRoi).CV_IEI;
-            roi_master(roi_cnt+iRoi).EvRate = tmp_roimaster(iRoi).EvRate;
+            roi_master(roi_cnt+iRoi).EvRate_Hz = tmp_roimaster(iRoi).EvRate_Hz;
             roi_master(roi_cnt+iRoi).Area_um = tmp_roimaster(iRoi).Area_um;
-            roi_master(roi_cnt+iRoi).StructNorm_Area = tmp_roimaster(iRoi).StructNorm_Area;
+            roi_master(roi_cnt+iRoi).Area_ROI_PercOf_Struct = tmp_roimaster(iRoi).Area_ROI_PercOf_Struct;
             roi_master(roi_cnt+iRoi).Ctr_X_um = tmp_roimaster(iRoi).Ctr_X_um;
             roi_master(roi_cnt+iRoi).Ctr_Y_um = tmp_roimaster.Ctr_Y_um;
-            roi_master(roi_cnt+iRoi).subtract_value = tmp_roimaster(iRoi).subtract_value;
-            roi_master(roi_cnt+iRoi).offset = tmp_roimaster(iRoi).offset;
-            roi_master(roi_cnt+iRoi).pmt = tmp_roimaster(iRoi).pmt;
+            roi_master(roi_cnt+iRoi).Subtract_value = tmp_roimaster(iRoi).Subtract_value;
+            roi_master(roi_cnt+iRoi).Offset = tmp_roimaster(iRoi).Offset;
+            roi_master(roi_cnt+iRoi).Pmt_gain = tmp_roimaster(iRoi).Pmt_gain;
         end
         roi_cnt = roi_cnt + roi_n;
         
         % Synchronicity and Distance master table
-        sync_n = size(tmp_sync_dist,2);
-        for iSync = 1:sync_n
-            synchronicity_master(sync_cnt+iSync).Recording = FILELIST{tmpfile,1}(1:end-4);
-            synchronicity_master(sync_cnt+iSync).ROI_1 = tmp_sync_dist.ROI_1(iSync);
-            synchronicity_master(sync_cnt+iSync).ROI_2 = tmp_sync_dist.ROI_2(iSync);
-            synchronicity_master(sync_cnt+iSync).Dist_um = tmp_sync_dist.Dist_um(iSync);
-            synchronicity_master(sync_cnt+iSync).PearsonR = tmp_sync_dist.PearsonR(iSync);
+        if tmp_summary.Num_ROIs > 1
+            sync_n = size(tmp_sync_dist,1);
+            for iSync = 1:sync_n
+                synchronicity_master(sync_cnt+iSync).Recording = FILELIST{tmpfile,1}(1:end-4);
+                synchronicity_master(sync_cnt+iSync).ROI_1 = tmp_sync_dist.ROI_1(iSync);
+                synchronicity_master(sync_cnt+iSync).ROI_2 = tmp_sync_dist.ROI_2(iSync);
+                synchronicity_master(sync_cnt+iSync).Dist_um = tmp_sync_dist.Dist_um(iSync);
+                synchronicity_master(sync_cnt+iSync).PearsonR = tmp_sync_dist.PearsonR(iSync);
+                synchronicity_master(sync_cnt+iSync).EvRate_Hz_ROI_1 = tmp_sync_dist.EvRate_Hz_ROI_1(iSync);
+                synchronicity_master(sync_cnt+iSync).EvRate_Hz_ROI_2 = tmp_sync_dist.EvRate_Hz_ROI_2(iSync);
+            end
+            sync_cnt = sync_cnt + sync_n;
         end
-        sync_cnt = sync_cnt + sync_n;
     end
 end
 

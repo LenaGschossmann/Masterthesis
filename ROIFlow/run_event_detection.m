@@ -1,200 +1,241 @@
-function [eventdata, selrois, params] = run_event_detection(eventdata,roilist, dFoFtraces, FoFtraces, traces,  params, ft, auto, getui)
+function [eventdata, roi_list, params] = run_event_detection(eventdata,roilist, params, ft, auto, getui)
+
 %% Function to detect events in optical imaging data using iGluSnFR as sensor
-n_frames = size(dFoFtraces,2);
-peakwin = ceil(params.peak_win_ms/(1000*ft));
-% threshold_fac = params.ev_fac;
-perc_threshold = params.ev_perc_thresh;
-inizone = params.dFoF_baseline_s;
-safe_fac = params.safe_fac;
-critical_fac = params.critical_fac;
-ui = [];
-% ui = inputdlg({'Threshold Factor:', 'Save Factor', 'Specific ROIs (sep: ,)'} ,'Set Values',[1 30], {num2str(threshold_fac), num2str(save_fac), ''});
-if getui
-    ui = inputdlg({'Percentile Threshold:', 'Safe factor (multiple of max. neg. value):',...
-        'Critical factor (multiple of percentile):', 'Specific ROIs (sep: ,)'} ,...
-        'Set Values',[1 30], {num2str(perc_threshold),num2str(safe_fac), num2str(critical_fac),''});
-    if ~isempty(ui)
-        perc_threshold = str2num(ui{1}); params.ev_perc_thresh = perc_threshold;
-        safe_fac = str2num(ui{2}); params.safe_fac = safe_fac;
-        critical_fac = str2num(ui{3}); params.critical_fac = critical_fac;
-    end
-end
-if isempty(ui), selrois = 1:size(dFoFtraces,1);
-elseif isempty(ui{4}), selrois = 1:size(dFoFtraces,1);
-else
-    tmprois = split(ui{4},',');
-    selrois = NaN(numel(tmprois),1);
-    for iRoi = 1:numel(tmprois),selrois(iRoi)=roilist{str2num(tmprois{iRoi}),2}; end
-end
-nrois = numel(selrois);
+n_frames = size(eventdata(1).filtrd_trace,2);
 rand_pts = round(n_frames*0.15);
 
-for iRoi = 1:nrois
-    tmproi = selrois(iRoi);
-    tmpdFoF = dFoFtraces(tmproi,:);
-    tmpFoF = FoFtraces(tmproi,:);
-    tmptrc = traces(tmproi,:);
-    
-    %% All Negativ values
-%     neg_dFoF_vals = abs(tmpdFoF(tmpdFoF<0));
-%     perc_neg_val = prctile(neg_dFoF_vals, perc_threshold);
-%     max_neg_val = max(neg_dFoF_vals);
-    %         mean_neg_amp = mean(neg_dFoF_vals);
-    
-    %% Detect event onset and peak based on sd of dFoF values
-    perc_pos_val = prctile(tmpdFoF(tmpdFoF>0), perc_threshold);
-    perc_val = perc_pos_val;
-    max_val = perc_pos_val*critical_fac;
-    [~, num_pos_ev, onset_idx, peak_idx] = get_ev_onset(tmpdFoF, n_frames, perc_val*critical_fac, peakwin, ft, inizone);
-    
-    if num_pos_ev > 0        
-        %% Output
-        onset_binary = false(n_frames,1); onset_binary(onset_idx) = true; % Binarized vector indicating onsets
-        peak_binary = false(n_frames,1); peak_binary(peak_idx) = true; % Binarized vector indicating peaks
-        dFoF_amps =  tmpdFoF(peak_idx);
-        FoF_amps = tmpFoF(peak_idx);
-        amps = tmptrc(peak_idx);
-        num_pos_ev = numel(onset_idx);
-        
-        %% Classsify ROIs/ events for revision
-%         % Detect events in negativ range as control
-%         [~, num_neg_ev, ~, neg_peak_idx] = get_ev_onset(-tmpdFoF, n_frames, perc_val*critical_fac, peakwin, ft, inizone);
-%         if num_neg_ev ~= 0, neg_dFoF_amps = abs(tmpdFoF(neg_peak_idx));
-%         else, neg_dFoF_amps = 0;
-%         end
-        
-        % Draw random points to quantify noise
-        [rnd_amp] = get_rnd_ev(tmpdFoF, n_frames, rand_pts, peakwin);
-        
-        ev_criterion1 = dFoF_amps > max_val*safe_fac;
-        ev_criterion2 = dFoF_amps <= max_val*safe_fac;
-        
-        roi_criterion1 = sum(ev_criterion1) / sum(ev_criterion2);
-        if all(~ev_criterion2) && ~all(~ev_criterion1), roi_criterion1 = 1; end
-%         roi_criterion2 = sum(neg_dFoF_amps> perc_neg_val*critical_fac) / sum(ev_criterion1 | ev_criterion2);
-%         roi_criterion2 = perc_val / mean(dFoF_amps(ev_criterion1));
-        roi_criterion2 = prctile(tmpdFoF(tmpdFoF>0),50)/prctile(tmpdFoF(tmpdFoF>0),99); %std(tmpdFoF(tmpdFoF>0))
-        roi_criterion3 = sum(tmpdFoF<-perc_val*critical_fac) / sum(ev_criterion2);
-        
-        if auto
-            test_idx = find(ev_criterion2 == 1);
-            ev_criterion3 = false(1,numel(ev_criterion2));
-            % Check if difference between onset & peak is larger than between peak and peak+1
-            for iN = 1:numel(test_idx)
-                if abs(diff([tmpdFoF(onset_idx(test_idx(iN))), dFoF_amps(test_idx(iN))])) >...
-                        abs(diff([dFoF_amps(test_idx(iN)), tmpdFoF(peak_idx(test_idx(iN))+1)]))
-                    test_mask(iN) = true;
-                    ev_criterion3(test_idx(iN)) = true;
-                end
-            end
-            %             rev_idx = test_idx(~criterion21);
-        end
-        
-        if roi_criterion1 >= 0.5 || (any(roi_criterion1) && roi_criterion2 <= 0.21 && roi_criterion3 <= 0.1)
-            % Accept all events above critical threshold
-            remark = 'perfect';
-            save_idx = onset_idx(ev_criterion1 | ev_criterion2);
-            revise_idx = [];
-        elseif any(ev_criterion1) || (roi_criterion2 <= 0.23 && roi_criterion3 <= 0.3)
-            remark = 'ok';
-            if auto
-                save_idx = onset_idx(ev_criterion1 | ev_criterion3);
-                revise_idx = [];
-            else
-                save_idx = onset_idx(ev_criterion1);
-                revise_idx = onset_idx(ev_criterion2);
-            end
-        else
-            if auto
-                remark = 'excluded';
-                save_idx = [];
-                revise_idx = [];
-            else
-                remark = 'revise';
-                save_idx = onset_idx(ev_criterion1);
-                revise_idx = onset_idx(ev_criterion2);
-            end
-        end
-        
-        n_ev_class1 = sum(ev_criterion1);
-        n_ev_class2 = sum(ev_criterion2);
-        
-        %% Output
-        eventdata{tmproi,1} = onset_binary';
-        eventdata{tmproi,2} = peak_binary';
-        eventdata{tmproi,3} = onset_idx;
-        eventdata{tmproi,4} = peak_idx;
-        eventdata{tmproi,5} = [dFoF_amps' FoF_amps' amps'];
-        eventdata{tmproi,6} = revise_idx;
-        eventdata{tmproi,7} = save_idx;
-        eventdata{tmproi,8} = rnd_amp;
-        eventdata{tmproi,9} = [];
-        eventdata{tmproi,10} = [perc_val max_val safe_fac critical_fac];
-        eventdata{tmproi,11} = remark;
-        eventdata{tmproi,12} = [n_ev_class1 n_ev_class2];
-    else
-        peak_binary = false(n_frames,1); % Binarized vector indicating peaks
-        onset_binary = false(n_frames,1);
-        eventdata{tmproi,1} = onset_binary;
-        eventdata{tmproi,2} = peak_binary;
-        eventdata{tmproi,3} = [];
-        eventdata{tmproi,4} = [];
-        eventdata{tmproi,5} = [];
-        eventdata{tmproi,6} = [];
-        eventdata{tmproi,7} = [];
-        eventdata{tmproi,8} = [];
-        eventdata{tmproi,9} = [];
-        eventdata{tmproi,10} = [perc_val max_val safe_fac critical_fac];
-        eventdata{tmproi,11} = 'No events';
-        eventdata{tmproi,12} = [];
+peakwin = ceil(params.peak_win_ms/(1000*ft));
+inizone = params.dFoF_baseline_s;
+
+SD_factor_FoF_1d = params.ev_SD_factor;
+SD_factor_FoF = params.ev_SD_factor_safe;
+
+ui = [];
+if getui
+    ui = inputdlg({'dF/F SD factor (slope):', 'F/F - SD factor (amp):', 'Specific ROIs (sep: ,)'} ,...
+        'Set Values',[1 30], {num2str(SD_factor_FoF_1d), num2str(SD_factor_FoF), ''});
+    if ~isempty(ui)
+        SD_factor_FoF_1d = str2num(ui{1}); params.ev_SD_factor = SD_factor_FoF_1d;
+        SD_factor_FoF = str2num(ui{2}); params.ev_SD_factor_safe = SD_factor_FoF;
     end
 end
 
+if isempty(ui), roi_list = 1:size(eventdata,2);
+elseif isempty(ui{3}), roi_list = 1:size(eventdata,2);
+else
+    tmprois = split(ui{3},',');
+    roi_list = NaN(numel(tmprois),1);
+    for iRoi = 1:numel(tmprois),roi_list(iRoi)=roilist{str2num(tmprois{iRoi}),2}; end
+end
 
-%% Local functions
-    function [perc_val, num_ev, onset, peak] = get_ev_onset(dFoFtrc, n_frames, perc_val, peakwin, ft, inizone)
-%         if isempty(perc_neg_val), sd_val = std(dFoFtrc); end
-        % Onset
-        onset = find(dFoFtrc > (perc_val) == 1);
-        onset = onset-1;
-        if ~isempty(onset)
-            onset(onset.*ft <= inizone) = [];
-            test_dist = diff(onset); del = find(test_dist <= peakwin); onset(del+1) = [];
+nrois = numel(roi_list);
+
+%% Define SD(noise)
+FoF1d_std_noise = NaN(nrois,1);
+FoF_std_noise = NaN(nrois,1);
+for iRoi = 1:nrois
+    tmpFoF = eventdata(iRoi).filtrd_FoFtrace;
+    % SD of 1st derivative of FoF < 0
+    FoF_filtrd_1d = diff(tmpFoF,  1, 2); % 1st derivative
+    trc_neg = FoF_filtrd_1d; trc_neg = trc_neg(trc_neg < 0);
+    trc_synt_symm = [trc_neg -(trc_neg)];
+    FoF1d_std_noise(iRoi,1) = std(trc_synt_symm);
+    % SD of FoF < 1
+    trc_neg = tmpFoF; trc_neg = trc_neg(trc_neg < 1);
+    trc_synt_symm = [trc_neg 1+(1-trc_neg)];
+    FoF_std_noise(iRoi,1) = std(trc_synt_symm);
+end
+
+%% ********** Detect events **********
+for iRoi = 1:nrois
+    tmproi = roi_list(iRoi);
+    tmpFoF_1d = diff(eventdata(iRoi).filtrd_FoFtrace, 1, 2);
+    tmpFoF = eventdata(iRoi).filtrd_FoFtrace;
+    tmptrc = eventdata(iRoi).filtrd_trace;
+    stdFoF1d = FoF1d_std_noise(iRoi);
+    stdFoF = FoF_std_noise(iRoi);
+    ctrl_av_peak_FoF = [];
+    
+    % Criterion 1 - Slope: Exceeding F/F 1st derivative SDnoise threshold
+    onset_idx = find(tmpFoF_1d > (stdFoF1d * SD_factor_FoF_1d) == 1);
+    if ~isempty(onset_idx)
+        % Delete events in very beginning of trace
+        onset_idx(onset_idx.*ft <= inizone) = [];
+        % Delete onset if directly preceded by another
+        del = find(diff(onset_idx) == 1);
+        onset_idx(del+1) = [];
+    end
+    num_ev = numel(onset_idx);
+    
+    % Peak Index
+    peak_idx = zeros(1,size(onset_idx,2)); % Vector containing the indices of peak_idx points
+    del = false(num_ev,1);
+    for iEv = 1:num_ev
+        if onset_idx(iEv)+peakwin > n_frames, tmpwin= n_frames-onset_idx(iEv);
+        else, tmpwin = peakwin;
         end
-        num_ev = numel(onset);
+        [~,idxP] = max(tmpFoF(onset_idx(iEv):onset_idx(iEv)+tmpwin));
+        peak_idx(iEv) = onset_idx(iEv)+idxP-1;
         
-        % Peak
-        peak = zeros(1,size(onset,2)); % Vector containing the indices of peak points
-        del = false(num_ev,1);
-        if num_ev > 0
-            for iEv = 1:num_ev
-                if onset(iEv)+peakwin > n_frames, tmpwin= n_frames-onset(iEv);
+        % Delete event if peak_idx too close to end of trace
+        if (n_frames-peak_idx(iEv)) < peakwin, del(iEv) = true; end
+        
+        % Criterion 2 - F/F Amplitude: Delete if event too small
+        if tmpFoF(peak_idx(iEv)) <= 1+(stdFoF * SD_factor_FoF), del(iEv) = true; end
+    end
+    % Update
+    peak_idx(del) = [];
+    onset_idx(del) = [];
+    num_ev = numel(onset_idx);
+    
+    if num_ev > 0        
+        %% Controls
+        % Control 1: Detect control events in neg. range using 1st deriv. of F/F
+        ctrl_FoF = -(tmpFoF - 1) + 1;
+        ctrl_FoF_1d = diff(ctrl_FoF);
+        ctrl_onset_idx = find(ctrl_FoF_1d > (stdFoF1d * SD_factor_FoF_1d) == 1);
+        if ~isempty(ctrl_onset_idx)
+            ctrl_onset_idx(ctrl_onset_idx.*ft <= inizone) = [];
+            % Delete onset if directly preceded by another
+            del = find(diff(onset_idx) == 1);
+            onset_idx(del+1) = [];
+        end
+        ctrl_num_ev = numel(ctrl_onset_idx);
+        
+        ctrl_peak_idx = zeros(1,size(ctrl_onset_idx,2)); % Vector containing the indices of peak_idx points
+        critical_ctrl_ev = false(num_ev,1);
+        if ctrl_num_ev > 0
+            for iEv = 1:ctrl_num_ev
+                if ctrl_onset_idx(iEv)+peakwin > n_frames, tmpwin= n_frames-ctrl_onset_idx(iEv);
                 else, tmpwin = peakwin;
                 end
-                [~,idxP] = max(dFoFtrc(onset(iEv):onset(iEv)+tmpwin));
-                peak(iEv) = onset(iEv)+idxP-1;
-                % Delete event if peak too close to end of trace
-                if (n_frames-peak(iEv)) < peakwin, del(iEv) = true; end
+                [~,idxP] = max(ctrl_FoF(ctrl_onset_idx(iEv):ctrl_onset_idx(iEv)+tmpwin));
+                ctrl_peak_idx(iEv) = ctrl_onset_idx(iEv)+idxP-1;
+                % Delete event if peak_idx too close to end of trace
+                if (n_frames-ctrl_peak_idx(iEv)) < peakwin, critical_ctrl_ev(iEv) = true; end
+%                 % Criterion 2 - F/F Amplitude: Delete if event too small
+%                 if ctrl_FoF(ctrl_peak_idx(iEv)) <= 1+(stdFoF * SD_factor_FoF), critical_ctrl_ev(iEv) = true; end
+            end
+            ctrl_peak_FoF = ctrl_FoF(ctrl_peak_idx);
+            ctrl_peak_amp_FoF = ctrl_FoF(ctrl_peak_idx) - ctrl_FoF(ctrl_onset_idx);
+            if isempty(ctrl_peak_FoF)
+                ctrl_av_peak_FoF = [];
+            else
+                ctrl_av_peak_FoF = mean(ctrl_peak_FoF);
+                ctrl_max_peak_FoF = max(ctrl_peak_FoF);
             end
         end
-
-        peak(del) = [];
-        onset(del) = [];
-        num_ev = numel(onset);
-    end
-
-    function [rnd_amp] = get_rnd_ev(dFoFtrc, n_frames, rand_pts, peakwin)
-        possiblepos = 1:numel(dFoFtrc)-peakwin;
+        % Discard all events that are within amplitude range of events detected in "neg." range
+        del = tmpFoF(peak_idx) <= ctrl_max_peak_FoF;
+        % Update
+        peak_idx(del) = [];
+        onset_idx(del) = [];
+        num_ev = numel(onset_idx);
+        
+        % Control 2: Draw random points to assess by-chance detected peak
+        % F/F values
+        possiblepos = 1:n_frames-peakwin;
         randpos = randi(numel(possiblepos), rand_pts, 1);
         randpos = possiblepos(randpos);
-        rnd_amp = NaN(rand_pts,1);
-        for iP = 1:rand_pts % Calculate amplitude of maxima in the specified window after event onset with randomly chosen points
+        rnd_peak_FoF = NaN(1, rand_pts);
+        for iP = 1:rand_pts % Calculate amplitude of maxima in the specified window after event onset_idx with randomly chosen points
             if randpos(iP)+peakwin > n_frames, tmpwin= n_frames-randpos(iP);
             else, tmpwin = peakwin;
             end
-            rnd_amp(iP) = max(dFoFtrc(randpos(iP):randpos(iP)+tmpwin));
+            rnd_peak_FoF(iP) = max(tmpFoF(randpos(iP):randpos(iP)+tmpwin));
         end
-        rnd_amp = abs(rnd_amp);
+        
+        %% Assess certainty
+        %         ev_criterion1 = tmpFoF(onset_idx) > SD_factor_FoF * stdFoF;
+        %         ev_criterion2 = tmpFoF(onset_idx) <= SD_factor_FoF * stdFoF;
+        
+        %         roi_criterion1 = sum(ev_criterion1) / sum(ev_criterion2);
+        %         if all(~ev_criterion2) && ~all(~ev_criterion1), roi_criterion1 = 1; end
+        %         roi_criterion2 = prctile(tmpFoF(tmpFoF>1),50)/prctile(tmpFoF(tmpFoF>1),99); %std(tmpdFoF(tmpdFoF>0))
+        %         roi_criterion3 = sum(tmpdFoF < - SD_factor_FoF_1d * tmpSDnoise) / sum(ev_criterion2);
+        
+        
+        % Check if difference between onset_idx & peak_idx is larger than between peak_idx and peak_idx+1
+        rise = abs(diff([tmpFoF(onset_idx); tmpFoF(peak_idx)],1,1));
+        decay = abs(diff([tmpFoF(peak_idx); tmpFoF(peak_idx+1)],1,1));
+        auto_keep_ev = rise > 1.1 * decay;
+        % Let amplitude override kinetics criterion
+        amp_criterion = tmpFoF(peak_idx) >= 1+(2 * stdFoF * SD_factor_FoF);
+        auto_keep_ev = auto_keep_ev | amp_criterion;
+        if auto
+            % Update
+            onset_idx = onset_idx(auto_keep_ev);
+            peak_idx = peak_idx(auto_keep_ev);
+            num_ev = numel(onset_idx);
+        end
+        
+        %         if roi_criterion1 >= 0.5 || (any(roi_criterion1) && roi_criterion2 <= 0.21 && roi_criterion3 <= 0.1)
+%             % Accept all events above critical threshold
+%             remark = 'perfect';
+%             save_idx = onset_idx(ev_criterion1 | ev_criterion2);
+%             revise_idx = [];
+%         elseif any(ev_criterion1) || (roi_criterion2 <= 0.23 && roi_criterion3 <= 0.3)
+%             remark = 'ok';
+%             if auto
+%                 save_idx = onset_idx(ev_criterion1 | ev_criterion3);
+%                 revise_idx = [];
+%             else
+%                 save_idx = onset_idx(ev_criterion1);
+%                 revise_idx = onset_idx(ev_criterion2);
+%             end
+%         else
+%             if auto
+%                 remark = 'excluded';
+%                 save_idx = [];
+%                 revise_idx = [];
+%             else
+%                 remark = 'revise';
+%                 save_idx = onset_idx(ev_criterion1);
+%                 revise_idx = onset_idx(ev_criterion2);
+%             end
+%         end
+        
+%         n_ev_class1 = sum(ev_criterion1);
+%         n_ev_class2 = sum(ev_criterion2);
+        
+        %% Output
+%         onset_binary = false(n_frames,1); onset_binary(onset_idx) = true; % Binarized vector indicating onsets
+%         peak_binary = false(n_frames,1); peak_binary(peak_idx) = true; % Binarized vector indicating peaks
+%         dFoF_events = tmpdFoF(onset_idx + 1);
+        FoF_peak_amps = tmpFoF(peak_idx) - tmpFoF(onset_idx);
+        peak_amps = tmptrc(peak_idx) - tmptrc(onset_idx);
+        eventdata(tmproi).events_detected = true;
+%         eventdata(tmproi).onset_binary = onset_binary';
+%         eventdata(tmproi).peak_binary = peak_binary';
+        eventdata(tmproi).onset_idx = onset_idx;
+        eventdata(tmproi).peak_idx = peak_idx;
+        eventdata(tmproi).auto_keep_ev = auto_keep_ev;
+%         eventdata(tmproi).peak_amp = peak_amps';
+%         eventdata(tmproi).FoF_peak_amp = FoF_peak_amps';
+        eventdata(tmproi).FoF_SDnoise = stdFoF;
+        eventdata(tmproi).FoF_1stDer_SDnoise = stdFoF1d;
+        eventdata(tmproi).FoF_1stDer_threshold = stdFoF1d*SD_factor_FoF_1d;
+        eventdata(tmproi).FoF_threshold = 1+stdFoF*SD_factor_FoF;
+        eventdata(tmproi).ctrl_peak_FoF = ctrl_peak_FoF;
+        eventdata(tmproi).ctrl_av_peak_FoF = ctrl_av_peak_FoF;
+        eventdata(tmproi).rnd_peak_FoF = rnd_peak_FoF;
+    else
+        eventdata(tmproi).events_detected = false;
+%         eventdata(tmproi).onset_binary = false(n_frames,1);
+%         eventdata(tmproi).peak_binary = false(n_frames,1);
+        eventdata(tmproi).onset_idx = [];
+        eventdata(tmproi).peak_idx = [];
+        eventdata(tmproi).auto_keep_ev = [];
+%         eventdata(tmproi).peak_amp = [];
+%         eventdata(tmproi).FoF_peak_amp = [];
+        eventdata(tmproi).FoF_SDnoise = stdFoF;
+        eventdata(tmproi).FoF_1stDer_SDnoise = stdFoF1d;
+        eventdata(tmproi).FoF_1stDer_threshold = stdFoF1d*SD_factor_FoF_1d;
+        eventdata(tmproi).FoF_threshold = 1+stdFoF*SD_factor_FoF;
+        eventdata(tmproi).ctrl_peak_FoF = [];
+        eventdata(tmproi).ctrl_av_peak_FoF = [];
+        eventdata(tmproi).rnd_peak_FoF = [];
     end
+end
 
 end

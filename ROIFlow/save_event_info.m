@@ -1,33 +1,36 @@
-function [summary, roi_summary, synchro_dist_tbl] = save_event_info(eventdata, roiselection, roidata, path, filename, batchmode)
+function [summary, roi_summary, synchro_dist_tbl] = save_event_info(eventdata, roiselection, roidata, params, path, filename, batchmode)
 
 %% Unpack & Initialize
-roiselection = reshape(roiselection,[numel(roiselection) 1]);
-save_rois = find(roiselection == 1 & cellfun(@isempty, eventdata(:,7))==0);
+% roiselection = reshape(roiselection,[numel(roiselection) 1]);
+save_rois = find(roiselection == 1);
 
 nrois = numel(save_rois);
 roinames = cell(nrois,1);
-% n_frames = size(roidata.traces,2);
 for i=1:nrois, roinames{i} = sprintf('ROI_%i',save_rois(i)); end
 ft = roidata.frametime_s;
-prepts = round(0.5/ft);
-postpts = round(1.5/ft);
+prepts = round(params.crp_trc_pre_s/ft);
+postpts = round(params.crp_trc_post_s/ft);
 totpts = prepts+postpts+1;
-totevents = 0;
+tot_events = 0;
 tblcnt = 1;
 all_crp_dFoF = [];
 all_crp_FoF = [];
 all_crp_info = [];
-event_info = struct('ROI',[],'Event',[],'Onset_frame',[],'Onset_time', [], 'Peak_frame',[],...
-    'Peak_time',[],'Amp',[],'Amp_FoF',[],'Amp_dFoF',[],'IEI',[]);
-roi_summary = struct('ROI',[],'Num_Events',[],'Amp_Mean',[],'Amp_FoF_Mean',[],...
-    'Amp_dFoF_Mean',[], 'Amp_SD',[],'Amp_FoF_SD',[],'Amp_dFoF_SD',[],'Trc_Mean',[],...
-    'Trc_SD',[],'Threshold',[],'IEI_Mean',[], 'CV_IEI',[], 'EvRate',[],...
-    'Area_um',[],'Ctr_X_um',[],'Ctr_Y_um',[],'StructNorm_Area',[]);
-rec_summary = struct('Num_ROIs',[],'ToT_Num_Events',[],'Amp_Mean',[],'Amp_FoF_Mean',[],'Amp_dFoF_Mean',[],...
-    'Amp_SD',[],'Amp_FoF_SD',[],'Amp_dFoF_SD',[], 'IEI_Mean',[],'EvRate_Mean',[],...
-    'Area_um_Mean',[],'Dend_Area_um',[],'Bg_Area_um',[],'FoV_Area_um',[],'StructNorm_Area',[],'Events_per_Dend_Area',[]);
-synchro_tbl = struct('Time_s',[], 'Eventcount',[], 'Amp_Mean',[],'Amp_FoF_Mean',[],'Amp_dFoF_Mean',[],...
-    'Amp_SD',[],'Amp_FoF_SD',[],'Amp_dFoF_SD',[]);
+event_info = struct('ROI',[],'Event',[],'Onset_frame',[],'Peak_frame',[],'Peak_time',[],...
+    'Amp',[],'Amp_FoF',[],'Peak_dFoF',[],'Baseline',[],'IEI',[],...
+    'Subtract_value',[],'Offset',[],'Pmt_gain',[]);
+roi_summary = struct('ROI',[], 'Num_Events',[],'Size_FiltKernel',[],...
+    'Amp_Mean',[],'Amp_FoF_Mean',[],'Peak_dFoF_Mean', [],'Amp_SD',[],'Amp_FoF_SD',[],'Peak_dFoF_SD',[],...
+    'Trc_Mean',[],'Trc_FoF_Mean',[],'Trc_dFoF_Mean',[],'Trc_SD',[],'Trc_FoF_SD',[],'Trc_dFoF_SD',[],...
+    'Threshold_Slope',[],'Threshold_Amp',[],'Trc_SNR',[],'IEI_Mean',[],'CV_IEI',[],'EvRate_Hz',[],...
+    'Area_um',[],'Area_ROI_PercOf_Struct',[],'Ctr_X_um',[],'Ctr_Y_um',[],...
+    'Subtract_value',[],'Offset',[],'Pmt_gain',[]);
+rec_summary = struct('Num_ROIs',[], 'ToT_Num_Events',[], 'Num_Events_Mean',[],...
+    'Amp_Mean',[],'Amp_FoF_Mean',[],'Peak_dFoF_Mean', [],'Amp_SD',[],'Amp_FoF_SD',[],'Peak_dFoF_SD',[],...
+    'Mean_SNR',[],'IEI_Mean',[],'EvRate_Hz_Mean',[],'REC_time_s',[],...
+    'Area_um_Mean',[],'Area_ROI_PercOf_Struct',[],'Dend_Area_um',[],'Bg_Area_um',[],'FoV_Area_um',[],...
+    'Events_per_Dend_Area',[],'Subtract_value',[],'Offset',[],'Pmt_gain',[]);
+synchro_tbl = struct();
 roi_names_cell = cell(nrois,1);
 figsize = [30 30 1200 700];
 cmap_n = max(cellfun(@max, roidata.roi_bounds(:,2)));
@@ -56,122 +59,131 @@ bg_tiff = strcat(savepath, '\BGMASK_', filename,'.tiff'); if isa(bg_tiff,'cell')
 roi_ovw_png = strcat(savepath, '\ROIOVW_', filename,'.png'); if isa(roi_ovw_png,'cell'), roi_ovw_png=roi_ovw_png{1};end
 
 %% Event-related
-nframes = size(roidata.traces,2);
-timepoints = (1:nframes)'.*ft;
+n_frames = size(roidata.traces,2);
+timepoints = (1:n_frames)'.*ft;
 tbl_onset_binary.Time_s = timepoints;
 tbl_peaks_binary.Time_s = timepoints;
 traces.Time_s = timepoints;
 dFoF_traces.Time_s =  timepoints;
 FoF_traces.Time_s =  timepoints;
-syn_mtrx_Amp = NaN(nrois, nframes);
-syn_mtrx_Amp_FoF = NaN(nrois, nframes);
-syn_mtrx_Amp_dFoF = NaN(nrois, nframes);
-
+syn_mtrx_Amp = NaN(nrois, n_frames);
+syn_mtrx_Amp_FoF = NaN(nrois, n_frames);
+syn_mtrx_Peak_dFoF = NaN(nrois, n_frames);
+synchro_dist_tbl = table();
+    
 if ~isempty(save_rois)
     for iRoi = 1:nrois
         tmproi = save_rois(iRoi);
-        tmpdFoFtrace = roidata.dFoF_traces(tmproi,:);
-        tmpFoFtrace = roidata.FoF_traces(tmproi,:);
-        tmptrace = roidata.traces(tmproi,:);
-        save_idx = eventdata{tmproi,7};
-        nevents = numel(save_idx);
-        totevents = totevents+nevents;
-        save_ptr = NaN(nevents,1);
-        for iE = 1:nevents, save_ptr(iE) = find(save_idx(iE)==eventdata{tmproi,3}); end
-        baseline_n = roidata.baseline_frames;
+        curr_dFoFtrace =  eventdata(tmproi).filtrd_dFoFtrace';
+        curr_FoFtrace = eventdata(tmproi).filtrd_FoFtrace';
+        curr_trace = eventdata(tmproi).filtrd_trace';
+        save_on_idx = eventdata(tmproi).onset_idx;
+        save_peak_idx = eventdata(tmproi).peak_idx;
+        n_events = numel(save_on_idx);    
+        tot_events = tot_events+n_events;
+        save_ptr = 1:numel(save_on_idx);
+%         save_ptr = NaN(n_events,1);
+%         for iE = 1:n_events, save_ptr(iE) = find(save_on_idx(iE)==eventdata{tmproi,3}); end
+        n_baseline = roidata.baseline_frames;
         
         %% Traces
-        traces.(roinames{iRoi}) = roidata.traces(tmproi,:)';
-        dFoF_traces.(roinames{iRoi}) =  roidata.dFoF_traces(tmproi,:)';
-        FoF_traces.(roinames{iRoi}) =  roidata.FoF_traces(tmproi,:)';
+        traces.(roinames{iRoi}) = curr_trace;
+        dFoF_traces.(roinames{iRoi}) = curr_dFoFtrace;
+        FoF_traces.(roinames{iRoi}) =  curr_FoFtrace;
         
         %% Cropped traces
-        dFoF_croptrc = NaN(nevents,totpts);
-        FoF_croptrc = NaN(nevents,totpts);
-        crop_info = cell(4,nevents);
-        for iE = 1:numel(save_idx)
+        dFoF_croptrc = NaN(totpts,n_events);
+        FoF_croptrc = NaN(totpts,n_events);
+        crop_info = cell(4,n_events);
+        for iE = 1:numel(save_on_idx)
             % Event preceding part
-            if save_idx(iE)-prepts < 1
-                dFoF_croptrc(iE,prepts-save_idx(iE)+2:prepts+1) = tmpdFoFtrace(1:save_idx(iE))';
-                FoF_croptrc(iE,prepts-save_idx(iE)+2:prepts+1) = tmpFoFtrace(1:save_idx(iE))';
+            if save_on_idx(iE)-prepts < 1
+                dFoF_croptrc(prepts-save_on_idx(iE)+2:prepts+1,iE) = curr_dFoFtrace(1:save_on_idx(iE));
+                FoF_croptrc(prepts-save_on_idx(iE)+2:prepts+1,iE) = curr_FoFtrace(1:save_on_idx(iE));
             else
-                dFoF_croptrc(iE,1:prepts+1) = tmpdFoFtrace(save_idx(iE)-prepts:save_idx(iE))';
-                FoF_croptrc(iE,1:prepts+1) = tmpFoFtrace(save_idx(iE)-prepts:save_idx(iE))';
+                dFoF_croptrc(1:prepts+1,iE) = curr_dFoFtrace(save_on_idx(iE)-prepts:save_on_idx(iE));
+                FoF_croptrc(1:prepts+1,iE) = curr_FoFtrace(save_on_idx(iE)-prepts:save_on_idx(iE));
             end
             % Event following part
-            if save_idx(iE)+postpts > nframes
-                dFoF_croptrc(iE,prepts+2:prepts+1+size(tmpdFoFtrace,2)-save_idx(iE)) = tmpdFoFtrace(save_idx(iE)+1:end);
-                FoF_croptrc(iE,prepts+2:prepts+1+size(tmpdFoFtrace,2)-save_idx(iE)) = tmpFoFtrace(save_idx(iE)+1:end);
+            if save_on_idx(iE)+postpts > n_frames
+                dFoF_croptrc(prepts+2:prepts+1+size(curr_dFoFtrace,1)-save_on_idx(iE),iE) = curr_dFoFtrace(save_on_idx(iE)+1:end);
+                FoF_croptrc(prepts+2:prepts+1+size(curr_dFoFtrace,1)-save_on_idx(iE),iE) = curr_FoFtrace(save_on_idx(iE)+1:end);
             else
-                dFoF_croptrc(iE,prepts+2:end) = tmpdFoFtrace(save_idx(iE)+1:save_idx(iE)+postpts);
-                FoF_croptrc(iE,prepts+2:end) = tmpFoFtrace(save_idx(iE)+1:save_idx(iE)+postpts);
+                dFoF_croptrc(prepts+2:end,iE) = curr_dFoFtrace(save_on_idx(iE)+1:save_on_idx(iE)+postpts);
+                FoF_croptrc(prepts+2:end,iE) = curr_FoFtrace(save_on_idx(iE)+1:save_on_idx(iE)+postpts);
             end
             crop_info{1,iE} = roinames{iRoi};
             crop_info{2,iE} = iE;
-            crop_info{3,iE} = save_idx(iE);
-            crop_info{4,iE} = save_idx(iE)*ft;
+            crop_info{3,iE} = save_on_idx(iE);
+            crop_info{4,iE} = save_on_idx(iE)*ft;
         end
-        all_crp_dFoF = [all_crp_dFoF dFoF_croptrc'];
-        all_crp_FoF = [all_crp_FoF FoF_croptrc'];
+        all_crp_dFoF = [all_crp_dFoF dFoF_croptrc];
+        all_crp_FoF = [all_crp_FoF FoF_croptrc];
         all_crp_info = [all_crp_info crop_info];
         
         % Binary traces
-        tmponset = zeros(nframes,1); tmponset(save_idx,1) = 1;
-        tmppeak = zeros(nframes,1); tmppeak(eventdata{tmproi,4}(save_ptr),1) = 1;
-        tbl_onset_binary.(roinames{iRoi}) = uint8(tmponset);
-        tbl_peaks_binary.(roinames{iRoi}) = uint8(tmppeak);
+        curr_on_binary = zeros(n_frames,1); curr_on_binary(save_on_idx(save_ptr),1) = 1;
+        curr_peak_binary = zeros(n_frames,1); curr_peak_binary(save_peak_idx(save_ptr),1) = 1;
+        tbl_onset_binary.(roinames{iRoi}) = uint8(curr_on_binary);
+        tbl_peaks_binary.(roinames{iRoi}) = uint8(curr_peak_binary);
         
         % Event info
         % Calculate IEIs
-        tmpieis = diff(reshape(eventdata{tmproi,7},[nevents 1]).*ft); tmpieis = [0; tmpieis];
-        for iE =1:nevents
+        tmpieis = diff(reshape(eventdata(tmproi).onset_idx,[n_events 1]).*ft); tmpieis = [0; tmpieis];
+        for iE =1:n_events
+            tmpon = save_on_idx(save_ptr(iE));
+            tmppk = save_peak_idx(save_ptr(iE));
             event_info(tblcnt).ROI = tmproi;
             event_info(tblcnt).Event = iE;
-            event_info(tblcnt).Onset_frame = eventdata{tmproi,7}(iE);
-            event_info(tblcnt).Onset_time = eventdata{tmproi,7}(iE)*ft;
-            event_info(tblcnt).Peak_frame = eventdata{tmproi,4}(save_ptr(iE));
-            event_info(tblcnt).Peak_time = eventdata{tmproi,4}(save_ptr(iE))*ft;
-            event_info(tblcnt).Amp = eventdata{tmproi,5}(save_ptr(iE),3);
-            event_info(tblcnt).Amp_FoF = eventdata{tmproi,5}(save_ptr(iE),2);
-            event_info(tblcnt).Baseline = mean(tmptrace(eventdata{tmproi,7}(iE)-baseline_n:eventdata{tmproi,7}(iE)-1));
-            event_info(tblcnt).Amp_dFoF = eventdata{tmproi,5}(save_ptr(iE),1);
+            event_info(tblcnt).Onset_frame = tmpon;
+            event_info(tblcnt).Onset_time = tmpon*ft;
+            event_info(tblcnt).Peak_frame = tmppk;
+            event_info(tblcnt).Peak_time = tmppk*ft;
+            event_info(tblcnt).Baseline = mean(curr_trace(tmpon - n_baseline:tmpon - 1));
+            event_info(tblcnt).Amp = curr_trace(tmppk) - event_info(tblcnt).Baseline;
+            event_info(tblcnt).Amp_FoF = curr_FoFtrace(tmppk) - 1;
+%             event_info(tblcnt).Peak_dFoF = curr_dFoFtrace(tmppk);
             event_info(tblcnt).IEI = tmpieis(iE);
-            event_info(tblcnt).subtract_value = roidata.subtract_value;
-            event_info(tblcnt).offset = roidata.offset;
-            event_info(tblcnt).pmt = roidata.pmt;
+            event_info(tblcnt).Subtract_value = roidata.subtract_value;
+            event_info(tblcnt).Offset = roidata.offset;
+            event_info(tblcnt).Pmt_gain = roidata.pmt_gain;
             tblcnt=tblcnt+1;
             
-            syn_mtrx_Amp_dFoF(iRoi,eventdata{tmproi,7}(iE)) = eventdata{tmproi,5}(save_ptr(iE),1);
-            syn_mtrx_Amp_FoF(iRoi,eventdata{tmproi,7}(iE)) = eventdata{tmproi,5}(save_ptr(iE),2);
-            syn_mtrx_Amp(iRoi,eventdata{tmproi,7}(iE)) = eventdata{tmproi,5}(save_ptr(iE),3);
+%             syn_mtrx_Peak_dFoF(iRoi,tmpon) = curr_dFoFtrace(tmppk);
+            syn_mtrx_Amp_FoF(iRoi,tmpon) = curr_FoFtrace(tmppk) - 1; 
+            syn_mtrx_Amp(iRoi,tmpon) = curr_trace(tmppk) - mean(curr_trace(tmpon - n_baseline:tmpon - 1));
         end
         
         % ROI Event Summary
         roi_summary(iRoi).ROI = roinames{iRoi};
-        roi_summary(iRoi).Num_Events = nevents;
-        roi_summary(iRoi).Amp_Mean = mean(eventdata{tmproi,5}(save_ptr,3));
-        roi_summary(iRoi).Amp_FoF_Mean = mean(eventdata{tmproi,5}(save_ptr,2));
-        roi_summary(iRoi).Amp_dFoF_Mean = mean(eventdata{tmproi,5}(save_ptr,1));
-        roi_summary(iRoi).Amp_SD = std(eventdata{tmproi,5}(save_ptr,3));
-        roi_summary(iRoi).Amp_FoF_SD = std(eventdata{tmproi,5}(save_ptr,2));
-        roi_summary(iRoi).Amp_dFoF_SD = std(eventdata{tmproi,5}(save_ptr,1));
-        roi_summary(iRoi).Trc_Mean = mean(tmptrace);
-        roi_summary(iRoi).Trc_SD = std(tmptrace);
-        roi_summary(iRoi).Trc_dFoF_SD = std(tmpdFoFtrace);
-        roi_summary(iRoi).Threshold = eventdata{tmproi,10}(1);
-        roi_summary(iRoi).Trc_SNR = roi_summary(iRoi).Amp_dFoF_Mean/roi_summary(iRoi).Trc_dFoF_SD;
-        if isempty(roi_summary(iRoi).Amp_dFoF_Mean), roi_summary(iRoi).Trc_SNR = NaN; end
-        roi_summary(iRoi).Event_confidence = eventdata{tmproi,12}(1)/sum(eventdata{tmproi,12});
+        roi_summary(iRoi).Num_Events = n_events;
+        roi_summary(iRoi).Size_FiltKernel = eventdata(tmproi).size_FiltKernel;
+        roi_summary(iRoi).Amp_Mean = mean(syn_mtrx_Amp(iRoi,:), 'omitnan');
+        roi_summary(iRoi).Amp_FoF_Mean = mean(syn_mtrx_Amp_FoF(iRoi,:), 'omitnan');
+%         roi_summary(iRoi).Peak_dFoF_Mean = mean(syn_mtrx_Peak_dFoF(iRoi,:),'omitnan');
+        roi_summary(iRoi).Amp_SD = std(syn_mtrx_Amp(iRoi,:),'omitnan');
+        roi_summary(iRoi).Amp_FoF_SD = std(syn_mtrx_Amp_FoF(iRoi,:), 'omitnan');
+        roi_summary(iRoi).Peak_dFoF_SD = std(syn_mtrx_Peak_dFoF(iRoi,:), 'omitnan');
+        roi_summary(iRoi).Trc_Mean = mean(curr_trace);
+        roi_summary(iRoi).Trc_FoF_Mean = mean(curr_FoFtrace);
+        roi_summary(iRoi).Trc_dFoF_Mean = mean(curr_dFoFtrace);
+        roi_summary(iRoi).Trc_SD = std(curr_trace);
+        roi_summary(iRoi).Trc_FoF_SD = std(curr_FoFtrace);
+        roi_summary(iRoi).Trc_dFoF_SD = std(curr_dFoFtrace);
+        roi_summary(iRoi).Threshold_Slope = eventdata(tmproi).FoF_1stDer_threshold;
+        roi_summary(iRoi).Threshold_Amp = eventdata(tmproi).FoF_threshold;
+        roi_summary(iRoi).Trc_SNR = mean(curr_FoFtrace(save_peak_idx(save_ptr)))/std(curr_FoFtrace);
+        if isempty(roi_summary(iRoi).Amp_FoF_Mean), roi_summary(iRoi).Trc_SNR = NaN; end
         roi_summary(iRoi).IEI_Mean = mean(tmpieis);
         roi_summary(iRoi).CV_IEI = std(tmpieis)/mean(tmpieis);
-        roi_summary(iRoi).EvRate = nevents*60/(nframes*ft);
+        roi_summary(iRoi).EvRate_Hz = n_events*60/(n_frames*ft);
         roi_summary(iRoi).Area_um = roidata.roi_area_um(tmproi);
-        roi_summary(iRoi).StructNorm_Area = roidata.roi_area_um(tmproi)/roidata.dendritic_area_um;
+        roi_summary(iRoi).Area_ROI_PercOf_Struct = roidata.roi_area_um(tmproi)*100/roidata.dendritic_area_um;
         roi_summary(iRoi).Ctr_X_um = roidata.roi_centroids_um(tmproi,1);
         roi_summary(iRoi).Ctr_Y_um = roidata.roi_centroids_um(tmproi,2);
-        roi_summary(iRoi).subtract_value = roidata.subtract_value;
-        roi_summary(iRoi).offset = roidata.offset;
-        roi_summary(iRoi).pmt = roidata.pmt;
+        roi_summary(iRoi).Subtract_value = roidata.subtract_value;
+        roi_summary(iRoi).Offset = roidata.offset;
+        roi_summary(iRoi).Pmt_gain = roidata.pmt_gain;
         
         % ROI snap
         f1=figure('Position',figsize,'Visible','off');
@@ -193,22 +205,27 @@ if ~isempty(save_rois)
     distance_mtrx = ones(nrois,nrois);
     fill_mtrx = true(nrois,nrois);
     roi_mtrx = cell(nrois,nrois);
-    synchro_dist_mtrx = NaN(sum(1:nrois-1),4);
+    synchro_dist_mtrx = NaN(sum(1:nrois-1),6);
     cnt = 1;
     for iRoi1 = 1:nrois-1
         tmproi1 = save_rois(iRoi1);
-        tmpbin1 = zeros(nframes,1); tmpbin1(eventdata{tmproi1,7}) = 1;
+        tmpbin1 = zeros(n_frames,1);
+        save_ptr1 = 1:numel(eventdata(tmproi1).onset_idx);
+        tmpbin1(eventdata(tmproi1).onset_idx(save_ptr1)) = 1;
         tmpx1 = roidata.roi_centroids_um(tmproi1,1);
         tmpy1 = roidata.roi_centroids_um(tmproi1,2);
+        evr1 = roi_summary(iRoi1).EvRate_Hz;
         for iRoi2 = iRoi1+1:nrois
             % Distance
             tmproi2 = save_rois(iRoi2);
             tmpx2 = roidata.roi_centroids_um(tmproi2,1);
             tmpy2 = roidata.roi_centroids_um(tmproi2,2);
             dist = norm([tmpx1 tmpy1] -[tmpx2 tmpy2]);
+            evr2 = roi_summary(iRoi2).EvRate_Hz;
             distance_mtrx(iRoi1,iRoi2) = dist;
             % Synchronicity expressed as Pearsons correlation coefficient
-            tmpbin2 = zeros(nframes,1); tmpbin2(eventdata{tmproi2,7}) = 1;
+            save_ptr2 = 1:numel(eventdata(tmproi2).onset_idx);
+            tmpbin2 = zeros(n_frames,1); tmpbin2(eventdata(tmproi2).onset_idx(save_ptr2)) = 1;
             av1 = mean(tmpbin1); av2 = mean(tmpbin2);
             r = sum((av1-tmpbin1).*(av2-tmpbin2)) / sqrt(sum((av1-tmpbin1).^2)*sum((av2-tmpbin2).^2));
             synchro_mtrx(iRoi1,iRoi2) =  r;
@@ -216,6 +233,7 @@ if ~isempty(save_rois)
             roi_mtrx{iRoi1,iRoi2} = strcat(roinames{iRoi1},'-',roinames{iRoi2});
             synchro_dist_mtrx(cnt,1) = tmproi1; synchro_dist_mtrx(cnt,2) = tmproi2;
             synchro_dist_mtrx(cnt,3) = r; synchro_dist_mtrx(cnt,4) = dist;
+            synchro_dist_mtrx(cnt,5) = evr1; synchro_dist_mtrx(cnt,6) = evr2;
             cnt = cnt+1;
         end
     end
@@ -225,49 +243,49 @@ if ~isempty(save_rois)
     synchro_mtrx(fill_mtrx) = trsp_mtrx(fill_mtrx);
     trsp_mtrx = roi_mtrx';
     roi_mtrx(fill_mtrx) = trsp_mtrx(fill_mtrx);
-    synchro_dist_tbl = table();
     synchro_dist_tbl.ROI_1 = synchro_dist_mtrx(:,1);
     synchro_dist_tbl.ROI_2 = synchro_dist_mtrx(:,2);
     synchro_dist_tbl.Dist_um = synchro_dist_mtrx(:,4);
     synchro_dist_tbl.PearsonR = synchro_dist_mtrx(:,3);
+    synchro_dist_tbl.EvRate_Hz_ROI_1 = synchro_dist_mtrx(:,5);
+    synchro_dist_tbl.EvRate_Hz_ROI_2 = synchro_dist_mtrx(:,6);
     
     %% Calculate Synchronicity Histogram
-    for iT = 1:nframes
+    for iT = 1:n_frames
         evid = find(isnan(syn_mtrx_Amp(:,iT))==0);
         synchro_tbl(iT).Time_s = timepoints(iT);
         synchro_tbl(iT).Eventcount = numel(evid);
         synchro_tbl(iT).Amp_Mean = mean(syn_mtrx_Amp(evid,iT));
         synchro_tbl(iT).Amp_FoF_Mean = mean(syn_mtrx_Amp_FoF(evid,iT));
-        synchro_tbl(iT).Amp_dFoF_Mean  = mean(syn_mtrx_Amp_dFoF(evid,iT));
+%         synchro_tbl(iT).Peak_dFoF_Mean  = mean(syn_mtrx_Peak_dFoF(evid,iT));
         synchro_tbl(iT).Amp_SD = std(syn_mtrx_Amp(evid,iT));
         synchro_tbl(iT).Amp_FoF_SD = std(syn_mtrx_Amp_FoF(evid,iT));
-        synchro_tbl(iT).Amp_dFoF_SD = std(syn_mtrx_Amp_dFoF(evid,iT));
+        synchro_tbl(iT).Peak_dFoF_SD = std(syn_mtrx_Peak_dFoF(evid,iT));
     end
     
     %% Recoring Summary
     rec_summary.Num_ROIs = nrois;
-    rec_summary.ToT_Num_Events = totevents;
-    rec_summary.Num_Events_Mean = totevents/nrois;
-    rec_summary.Amp_Mean = mean([roi_summary(:).Amp_Mean]);
-    rec_summary.Amp_FoF_Mean = mean([roi_summary(:).Amp_FoF_Mean]);
-    rec_summary.Amp_dFoF_Mean = mean([roi_summary(:).Amp_dFoF_Mean]);
-    rec_summary.Amp_SD = std([roi_summary(:).Amp_Mean]);
-    rec_summary.Amp_FoF_SD = std([roi_summary(:).Amp_FoF_Mean]);
-    rec_summary.Amp_dFoF_SD = std([roi_summary(:).Amp_dFoF_Mean]);
-    rec_summary.Mean_SNR = mean([roi_summary(:).Trc_SNR]);
-    rec_summary.Event_confidence = mean([roi_summary(:).Event_confidence]);
-    rec_summary.IEI_Mean = mean([roi_summary(:).IEI_Mean]);
-    rec_summary.EvRate_Mean = mean([roi_summary(:).EvRate]);
-    rec_summary.REC_time_s = nframes.*ft;
-    rec_summary.Area_um_Mean = mean([roi_summary(:).Area_um]);
-    rec_summary.StructNorm_Area = mean([roi_summary(:).StructNorm_Area]);
+    rec_summary.ToT_Num_Events = tot_events;
+    rec_summary.Num_Events_Mean = tot_events/nrois;
+    rec_summary.Amp_Mean = mean([roi_summary(:).Amp_Mean], 'omitnan');
+    rec_summary.Amp_FoF_Mean = mean([roi_summary(:).Amp_FoF_Mean], 'omitnan');
+%     rec_summary.Peak_dFoF_Mean = mean([roi_summary(:).Peak_dFoF_Mean], 'omitnan');
+    rec_summary.Amp_SD = std([roi_summary(:).Amp_Mean], 'omitnan');
+    rec_summary.Amp_FoF_SD = std([roi_summary(:).Amp_FoF_Mean], 'omitnan');
+%     rec_summary.Peak_dFoF_SD = std([roi_summary(:).Peak_dFoF_Mean], 'omitnan');
+    rec_summary.Mean_SNR = mean([roi_summary(:).Trc_SNR], 'omitnan');
+    rec_summary.IEI_Mean = mean([roi_summary(:).IEI_Mean], 'omitnan');
+    rec_summary.EvRate_Hz_Mean = mean([roi_summary(:).EvRate_Hz], 'omitnan');
+    rec_summary.REC_time_s = n_frames.*ft;
+    rec_summary.Area_um_Mean = mean([roi_summary(:).Area_um], 'omitnan');
+    rec_summary.Area_ROI_PercOf_Struct = mean([roi_summary(:).Area_ROI_PercOf_Struct], 'omitnan');
     rec_summary.Dend_Area_um = roidata.dendritic_area_um;
     rec_summary.Bg_Area_um = roidata.background_area_um;
     rec_summary.FoV_Area_um = roidata.fov_area_um;
-    rec_summary.Events_per_Dend_Area = totevents/roidata.dendritic_area_um;
-    rec_summary.subtract_value = roidata.subtract_value;
-    rec_summary.offset = roidata.offset;
-    rec_summary.pmt = roidata.pmt;
+    rec_summary.Events_per_Dend_Area = tot_events/roidata.dendritic_area_um;
+    rec_summary.Subtract_value = roidata.subtract_value;
+    rec_summary.Offset = roidata.offset;
+    rec_summary.Pmt_gain = roidata.pmt_gain;
     
     %% Save
     % Traces

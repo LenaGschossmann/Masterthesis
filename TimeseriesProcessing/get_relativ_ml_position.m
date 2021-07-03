@@ -3,7 +3,7 @@
 clear all;
 addpath('C:\Users\lena_\Projects\code_extern\Matlab\WriteImageJRoi');
 
-exp_dir_path = uigetdir('C:\Users\lena_\Projects\iGluSnFR\Analysis\Confocal\ROIFlow');
+exp_dir_path = uigetdir('C:\Users\lena_\Projects\iGluSnFR\Analysis\Confocal\ROIFlow_V4');
 info_dir_path = uigetdir('C:\Users\lena_\Projects\iGluSnFR\Analysis\Confocal\ML_Position');
 
 %% 1) Select folder of analyzed event data of recordings within one experiment
@@ -27,9 +27,11 @@ for iRec = 1:nrecs
     tmpinfo = dir(strcat(rec_paths{iRec}, '\SUMMARY*'));
     try
         tmp = readtable(fullfile(tmpinfo.folder, tmpinfo.name));
-        rec_cell{iRec,1} = table2cell(tmp(:,1));
-        rec_cell{iRec,2} = table2array(tmp(:,16:17));
-        rec_cell{iRec,13} = table2array(tmp(:,[2,5,12,14,15,18]));
+        rec_cell{iRec,1} = tmp.ROI;
+        rec_cell{iRec,2} = [tmp.Ctr_X_um tmp.Ctr_Y_um];
+        rec_cell{iRec,13} = [tmp.Num_Events, tmp.Amp_FoF_Mean,...
+            tmp.Peak_dFoF_Mean, tmp.IEI_Mean, tmp.EvRate_Hz,...
+            tmp.Area_um, tmp.CV_IEI, tmp.Area_ROI_PercOf_Struct];
     catch
         del_rec = [del_rec iRec];
     end
@@ -44,7 +46,7 @@ nrecs = size(rec_names,1);
 % .xls with column 1 containing recording ID,
 % column 2 containing px width of FOV, column 3 containing px resolution in
 % µm, column 4&5 containing the x and y coordinate of FOV center (- is left
-% (x) of ctr and above (y) reference ctr)
+% (x) and above (y) reference ctr)
 % ! Names must be same as filenames
 
 % Table for PC somata coordinates: .xls with column 1&2 containing x&y
@@ -238,7 +240,7 @@ end
 
 %% Save information
 % ML position
-outputpath = fullfile(info_dir_path,'ML_pos_Master_ROIs.xls'); if isa(outputpath,'cell'), outputpath=outputpath{1};end
+outputpath = fullfile(strcat(info_dir_path,'_V4'),'ML_pos_Master_ROIs.xls'); if isa(outputpath,'cell'), outputpath=outputpath{1};end
 
 % output_cell = cell(numel(rec_out_idx),8);
 % for i = 1:numel(rec_out_idx)
@@ -260,7 +262,7 @@ outputpath = fullfile(info_dir_path,'ML_pos_Master_ROIs.xls'); if isa(outputpath
 % writetable(output_tbl,outputpath);
 
 % Output information for individual ROIs
-output_cell = cell(numel(roicnt),11);
+output_cell = cell(numel(roicnt),13);
 cnter = 1;
 for i = 1:numel(rec_out_idx)
     tmpidx = rec_out_idx(i);
@@ -276,15 +278,19 @@ for i = 1:numel(rec_out_idx)
         output_cell{cnter,9} = rec_cell{tmpidx,13}(ii,4);
         output_cell{cnter,10} = rec_cell{tmpidx,13}(ii,5);
         output_cell{cnter,11} = rec_cell{tmpidx,13}(ii,6);
+        output_cell{cnter,12} = rec_cell{tmpidx,13}(ii,7);
+        output_cell{cnter,13} = rec_cell{tmpidx,13}(ii,8);
         cnter = cnter+1;
     end
 end
 
 output_tbl = renamevars(cell2table(output_cell),{'output_cell1',...
     'output_cell2', 'output_cell3', 'output_cell4', 'output_cell5', 'output_cell6',...
-    'output_cell7', 'output_cell8', 'output_cell9','output_cell10',  'output_cell11'},...
+    'output_cell7', 'output_cell8', 'output_cell9','output_cell10',  'output_cell11',...
+    'output_cell12', 'output_cell13'},...
     {'Recording', 'ROI','planar_dist_soma_um', 'ML_thickness_um', 'rel_ML_pos',...
-    'Num_Events', 'dFoF_Amp','IEI', 'EvRate', 'Area', 'Norm_Area'});
+    'Num_Events', 'Amp_FoF_Mean', 'Peak_dFoF_Mean', 'IEI_Mean', 'EvRate_Hz',...
+    'Area_um', 'CV_IEI', 'Area_ROI_PercOf_Struct'});
 writetable(output_tbl,outputpath);
 
 % %% Save ROIs in reference frame as .roi files

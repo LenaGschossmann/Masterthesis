@@ -1,4 +1,4 @@
-function [smoothed] = smooth_data(data, win)
+function [smoothed] = smooth_data(data, kernel)
 % Smooth input data in moving window style;
 % mean of fields covered by window is filled into middle position of window
 % Input:
@@ -24,7 +24,8 @@ function [smoothed] = smooth_data(data, win)
 %     smoothed = data;
 % end
 
-if win > 0
+if ~isempty(kernel)
+    win = numel(kernel);
     if mod(win,2) == 0, win = win+1; end
     data = double(data);
     n_frames = size(data,2);
@@ -37,7 +38,7 @@ if win > 0
     smsteps(startpos+1:stoppos,2) = win+1:n_frames;
     smsteps(stoppos+1:n_frames,1) = n_frames-win+1; smsteps(stoppos+1:n_frames,2) = n_frames;
     for iSm = 1:n_frames
-        smoothed(:,iSm) = mean(data(:,smsteps(iSm,1):smsteps(iSm,2)),2);
+        smoothed(:,iSm) = sum(data(:,smsteps(iSm,1):smsteps(iSm,2)) .* kernel, 2) ./ sum(kernel);
     end
 else
     smoothed = data;

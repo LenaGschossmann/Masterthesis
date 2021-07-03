@@ -6,8 +6,8 @@ addpath('C:\Users\lena_\Projects\code\Masterthesis\ROIFlow\test_scripts');
 
 %% Parameters
 global FONTSIZE SELECTED FILELIST NFILES INFOSTRUCT FTINFO SCALEINFO BGINFO AIPLIST...
-    but_2 but_4 but_5 but_6  list_1 txt_4 txtlist_3 txtlist_4  txtlist_5 txtlist_6...
-    txtlist_1 txtlist_2 PARAMS setcol unsetcol
+    but_2 but_4 but_5  list_1 txt_4 txtlist_3 txtlist_4  txtlist_5 txtlist_6...
+    PARAMS setcol unsetcol
 
 FONTSIZE = 10;
 SELECTED = 0;
@@ -84,7 +84,7 @@ uiwait;
 
 %% Local Callback functions
 function cb_list1(hObj,~)
-global SELECTED INFOSTRUCT but_2 but_4 but_5 but_6 setcol unsetcol
+global SELECTED INFOSTRUCT but_2 but_4 but_5 setcol unsetcol
 SELECTED = hObj.Value;
 if numel(SELECTED) == 1
     if ~isnan(INFOSTRUCT(SELECTED).frametime_s), but_4.BackgroundColor = setcol; else, but_4.BackgroundColor = unsetcol; end
@@ -92,7 +92,7 @@ if numel(SELECTED) == 1
     if INFOSTRUCT(SELECTED).mocorr, but_2.BackgroundColor = setcol; else, but_2.BackgroundColor = unsetcol; end
 else
     but_2.BackgroundColor = unsetcol; but_4.BackgroundColor = unsetcol;
-    but_5.BackgroundColor = unsetcol; but_6.BackgroundColor = unsetcol;
+    but_5.BackgroundColor = unsetcol;
 end
 end
 
@@ -114,7 +114,7 @@ for iF = 1:NFILES
     INFOSTRUCT(iF).name = FILELIST{iF};
     INFOSTRUCT(iF).mocorr = false;
     INFOSTRUCT(iF).corr_2pm = '\';
-    INFOSTRUCT(iF).pmt = NaN;
+    INFOSTRUCT(iF).pmt_gain = NaN;
     INFOSTRUCT(iF).offset = NaN;
     INFOSTRUCT(iF).refset = NaN;
     INFOSTRUCT(iF).frametime_s = NaN;
@@ -160,7 +160,7 @@ if ~isempty(SELECTED) && SELECTED(1)  ~= 0
     if ~isa(f_corrfile,'char'), f_corrfile = f_corrfile{1}; end
     for iSel = 1:numel(SELECTED)
         tmpf = readmatrix(f_corrfile);
-        INFOSTRUCT(SELECTED(iSel)).pmt = tmpf(1);
+        INFOSTRUCT(SELECTED(iSel)).pmt_gain = tmpf(1);
         INFOSTRUCT(SELECTED(iSel)).offset = tmpf(2);
         INFOSTRUCT(SELECTED(iSel)).corr_2pm = tmpf(3);
     end
@@ -236,7 +236,7 @@ end
 
 % function cb_but6_setbg(~,~)
 % global INFOSTRUCT SELECTED BGINFO FILELIST AIPLIST txt_4...
-%     txtlist_1 txtlist_2 PARAMS but_6 setcol
+%     PARAMS setcol
 % if ~isempty(SELECTED) && SELECTED(1) ~= 0
 %     txt_4.String = 'Set Frametime...';
 %     pause(0.1);
@@ -253,11 +253,7 @@ end
 %             BGINFO.bg_val(idx) = val_mtrx(iSel,1);
 %         end
 %     end
-%     
-%     txtlist_1.String = BGINFO.txt;
-%     txtlist_2.String = BGINFO.bg_val;
 %     pause(0.1);
-%     but_6.BackgroundColor = setcol;
 % else
 %     txt_4.String = 'SELECT FILE!';
 %     pause(0.1);

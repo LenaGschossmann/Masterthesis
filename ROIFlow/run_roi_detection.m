@@ -10,17 +10,6 @@ nfiles = size(infostruct,2);
 t_proc = 600;
 rectype = questdlg('Select type of recording','Recording type','Confocal', '2PM', 'Confocal');
 connectivity = 4;
-%LUT1
-% cc_px_factor_lut = [1.31 1.32 1.33 1.34 1.35 1.36 1.37;...
-%     2.8 2.9 3 3.1 3.2 3.3 3.4];
-% LUT2
-% cc_px_factor_lut = [1.32 1.33 1.34 1.35 1.36 1.37;...
-%     5.2 5.4 5.6 5.8 6 6.2];
-mv = 1.5; gr=0.2; mp=25;
-xval = 1:50;
-cc_px_factor_lut = lut_create(xval, mv, gr, mp);
-cc_px_factor_lut = [1+xval./100; cc_px_factor_lut];
-prctiles_rec_all = NaN(nfiles,1);
 
 %% Set parameters dependend on recording type if not given as input
 % corr_threshold: range between 0.3 - 0.5 recommended if smoothed data
@@ -29,19 +18,27 @@ if strncmp(rectype,'C',1)
     if isempty(params)
         params = get_predefined_params('connc_px_thresh', 16,...
             'responding_px_factor', 1.15, 'px_exclusion', 0.25,...
+            'lut_xlow', 1, 'lut_log_minval', 5, 'lut_log_maxval', 6.5, 'lut_log_growthrate', 0.2, 'lut_log_midpoint', 25,...
             'corr_threshold', 0.15, 'fill_thresh',0.25);
-    end
+    end   
 else
     if isempty(params)
-        params = get_predefined_params('connc_px_thresh', 16,...
+        params = get_predefined_params('connc_px_thresh', 18,...
             'responding_px_factor', 1.15, 'px_exclusion', 0.25,...
-            'corr_threshold', 0.15, 'fill_thresh',0.25);
-%         params = get_predefined_params('connc_px_thresh', 16,'connc_px_thresh_high', 6,...
-%             'responding_px_base_low', 1.3, 'responding_px_base_high', 2.9,...
-%             'responding_px_factor_low', 6, 'responding_px_factor_high', 1, ...
-%             'px_exclusion', 0.25, 'corr_threshold', 0.25, 'fill_thresh',0.25);
+            'lut_xlow', 1.4, 'lut_log_minval', 7, 'lut_log_maxval', 9, 'lut_log_growthrate', 0.3, 'lut_log_midpoint', 25,...
+            'corr_threshold', 0.15, 'fill_thresh',0.25); % 7-10,0.2
     end
 end
+
+%% Create LUT
+xval = 1:50;
+cc_px_factor_lut = lut_create(xval, params);
+xlut = params.lut_xlow+xval./100;
+xluta = [1:0.1:xlut(1)-0.1];
+xlutb = [xlut(end)+1:0.1:2.5];
+cc_px_factor_lut = [repelem(cc_px_factor_lut(1),numel(xluta)) cc_px_factor_lut repelem(cc_px_factor_lut(end),numel(xlutb))];
+cc_px_factor_lut = [xluta xlut xlutb; cc_px_factor_lut];
+prctiles_rec_all = NaN(nfiles,1);
 
 %% Main loop
 t_all = tic;
@@ -65,10 +62,10 @@ for iF = 1:nfiles
     if winsize < params.dFoF_baseline_frames, winsize = params.dFoF_baseline_frames; end
     if winsize > 20, winsize = 20; end
     if strncmp(rectype,'C',1)
-        pmt = NaN;
+        pmt_gain = NaN;
         offset = NaN;
     else
-        pmt = infostruct(iF).pmt;
+        pmt_gain = infostruct(iF).pmt_gain;
         offset = infostruct(iF).offset;
     end
     sd_factor = params.responding_px_factor;
@@ -128,7 +125,7 @@ for iF = 1:nfiles
     %% Calculate dFoF stack
     disp('Calculate F/F values...');
     [~, FoFtraces, ~] = rollBase_dFoF(corr_traces, winsize,shift, 'roll');
-    smth_traces = FoFtraces; %response_lin; % smooth_data(FoFtraces, corr_smth_win);  %FoFtraces;
+    smth_traces = FoFtraces; %response_lin; % smooth_data(FoFtraces, ones(1,corr_smth_win));  %FoFtraces;
         
     %     tmpim = reshape(FoFtraces,[imsize(1) imsize(2) n_frames]);
     %     tmpp = strcat(filepath, '\FoF_', infostruct(iF).name, '.tif');
@@ -417,6 +414,8 @@ for iF = 1:nfiles
                             % Find components adjacent to current component
                             bridge_cc = cc_endpoints(1);
                             pot_partners = find(check_adjcorr_mtrx(bridge_cc,:) > 0 & res_cc_bin);
+                            [~,sortidx] = sort(check_adjcorr_mtrx(bridge_cc,check_adjcorr_mtrx(bridge_cc,:) > 0 & res_cc_bin),'descend');
+                            pot_partners = pot_partners(sortidx);
                             %                             for ii = 1:cc_endpoints, pot_partners(pot_partners == cc_endpoints(ii)) = []; end
                             if ~isempty(pot_partners)
                                 for ii = 1:numel(pot_partners)
@@ -668,7 +667,7 @@ for iF = 1:nfiles
             corr_mip = reshape(max(corr_traces,[],2),[imsize(1) imsize(2)]);
             tmpmin = min(corr_mip,[],'all');
             uint16_mip = corr_mip-tmpmin; tmpmax = max(uint16_mip,[],'all');
-            uint16_mip = (uint16_mip./tmpmax).*(2^8);
+            uint8_mip = (uint16_mip./tmpmax).*(2^8);
             clear('tmpmin','tmpmax');
             
             %         % Save overview of all ROIs using AIP
@@ -679,7 +678,7 @@ for iF = 1:nfiles
             
             % Save overview of all ROIs using MIP
             ovwfig_mip = figure('Position', [0 0 scrsz(3:4)], 'PaperSize', scrsz(3:4));
-            imagesc(uint16_mip);colormap('gray');axis('off');daspect([1 1 1]);
+            imagesc(uint8_mip);colormap('gray');axis('off');daspect([1 1 1]);
             for cc = 1:cc_n_curr
                 B = bounds_cell_comb{cc,1};
                 hold on
@@ -703,7 +702,7 @@ for iF = 1:nfiles
             roidata.bg_threshold = bg_thresh;
             roidata.subtract_value = subtract_value;
             roidata.offset = offset;
-            roidata.pmt = pmt;
+            roidata.pmt_gain = pmt_gain;
             roidata.params = params;
             roidata.mocorr_run = mocorr;
             roidata.aip = corr_aip;
@@ -745,7 +744,7 @@ for iF = 1:nfiles
         roidata.params = params;
         roidata.mocorr_run = mocorr;
         roidata.offset = offset;
-        roidata.pmt = pmt;
+        roidata.pmt_gain = pmt_gain;
         roidata.aip = corr_aip;
         roidata.mip = corr_mip;
         roidata.background_mask = background;
@@ -791,6 +790,7 @@ histogram(prctiles_rec_all,cc_px_factor_lut(1,:),'FaceAlpha',.3, 'EdgeAlpha',.3)
 ylabel('Counts, 80%-Percentile values');
 yyaxis right
 plot(cc_px_factor_lut(1,:),cc_px_factor_lut(2,:));
+ylim([1 11]);
 ylabel('LUT - SD multiple - component threshold');
 outputname = strcat(savepath,'\Resp_component_percentiles_LUT.png');
 if isa(outputname,'cell'), outputname= outputname{1}; end
@@ -799,10 +799,5 @@ pause(0.3);
 close gcf
 
 msgbox('ROI detection finished');
-
-%% Local function
-    function yval = lut_create(xval, mv, gr, mp)
-        yval = 5+ (mv./(1+exp(-gr.*(xval-mp))));
-    end
 
 end
